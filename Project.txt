@@ -1,0 +1,55 @@
+# Leonie Game — Horse Game Project
+
+## Concept
+A mobile horse game inspired by Equestrian The Game (ETG).
+Own, train, breed, and compete with horses across multiple disciplines.
+
+## Tech Stack
+- **Engine/Renderer**: Babylon.js (3D)
+- **Language**: JavaScript
+- **Mobile Packaging**: Capacitor (iOS/Android app store deployment)
+- **Art Style**: 3D low-poly
+- **Target Platform**: Mobile (iOS & Android), playable on web as well
+
+## Planned Features (inspired by ETG, to be built incrementally)
+1. **Riding & Controls** — Touch-based horse riding with rein-style steering
+2. **Show Jumping** — Jump courses with scoring
+3. **Cross Country** — Endurance/terrain-based riding discipline
+4. **Horse Stats & Potential** — Stat system (strength, speed, stamina, mentality, jump, etc.) with fixed potential cap per horse
+5. **Training** — Activities to level up horse stats toward their potential
+6. **Breeding & Genetics** — DNA-based system affecting appearance, personality, stats
+7. **Multiple Breeds** — Distinct breeds with different stat profiles
+8. **Stable Management** — Horse care (feeding, grooming)
+9. **Trail Riding & Exploration** — Open areas to ride and discover
+10. **Competition & Leaderboards** — Compete against other players
+11. **Character Customization** — Rider appearance and gear
+12. **Monetization** — TBD (improve on ETG's approach)
+
+## Architecture
+
+### Multiplayer
+- **Model**: Real-time multiplayer (cooperative focus, not primarily competitive)
+- **Features**: Ride together, train together, co-op missions (2+ players)
+- **Tech**: Colyseus (JS real-time game server) + Socket-based communication
+- **Lobby system**: Invite friends to join a session (no persistent shared world initially)
+
+### Online / Offline
+- **Server-authoritative**: All meaningful state (stats, breeding, rewards, progression) lives on the server
+- **Offline mode**: Free-play / sandbox only — ride, explore, practice. Nothing modifies the database.
+- **Reconnection**: Offline sessions have no consequences. Player resumes from last online state.
+- **No sync conflicts**: Offline is read-only from a data perspective.
+
+### Backend (planned)
+- **Real-time server**: Colyseus (room/session management, player sync)
+- **Database**: TBD (MongoDB or PostgreSQL for persistent player/horse data)
+- **Auth**: TBD (account system for player identity)
+
+## Improvements Over ETG
+- Real-time cooperative multiplayer (ride, train, missions together)
+- Better onboarding / control tutorial
+- Fairer monetization model
+- (more to be defined as we go)
+
+## Current Status
+- Project setup: not started
+- Defining architecture and game design
