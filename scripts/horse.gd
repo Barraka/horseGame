@@ -57,6 +57,7 @@ const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's 
 @export var coat_color := Color(0.5, 0.26, 0.12)   ## Bay
 @export var points_color := Color(0.08, 0.06, 0.05) ## Mane, tail and lower legs
 @export_range(0.0, 1.0) var coat_strength := 1.0    ## 0 keeps the model's own painted coat
+@export_range(0.0, 1.0) var dirt := 0.0             ## Mud from riding; brushing cleans it
 
 var target_gait := 0
 var current_gait := 0
@@ -79,6 +80,7 @@ var _saddle: Node3D                  # Saddle and rider, moved with the horse's 
 var _rider: Node3D
 var _rest_pitch := 0.0
 var _phase := 0.0
+var _ridden := 0.0   # Metres ridden since the stable was last told
 
 
 func _ready() -> void:
@@ -91,6 +93,7 @@ func _ready() -> void:
 		coat_color = horse.body
 		points_color = horse.points
 		coat_strength = horse.strength
+		dirt = 1.0 - stable.care[stable.selected].clean
 	if ResourceLoader.exists(gait_set_dir.path_join(GAIT_SET[0].file)):
 		_build_gait_set()
 	elif ResourceLoader.exists(model_path):
@@ -116,6 +119,14 @@ func set_coat(body: Color, points: Color, strength := 1.0) -> void:
 		_coat_material.set_shader_parameter("body_color", body)
 		_coat_material.set_shader_parameter("points_color", points)
 		_coat_material.set_shader_parameter("strength", strength)
+
+
+## How muddy the horse looks, from 0 (spotless) to 1.
+func set_dirt(amount: float) -> void:
+	dirt = amount
+	if _coat_material:
+		_coat_material.set_shader_parameter("dirt", amount)
+		_coat_material.set_shader_parameter("ground_y", global_position.y if is_inside_tree() else 0.0)
 
 
 ## Stand still in the halt pose, for when the horse isn't being ridden.
@@ -200,11 +211,25 @@ func _physics_process(delta: float) -> void:
 		velocity.y = -1.0
 	else:
 		velocity.y -= GRAVITY * delta
+	var from := global_position
 	move_and_slide()
 	if jumping and is_on_floor() and velocity.y <= 0.0:
 		jumping = false
+	_wear(Vector2(global_position.x - from.x, global_position.z - from.z).length())
 
 	_animate(delta)
+
+
+## Riding makes the horse hungry and muddy, a little at a time.
+func _wear(metres: float) -> void:
+	_ridden += metres
+	if _coat_material:
+		_coat_material.set_shader_parameter("ground_y", global_position.y)
+	var stable := get_node_or_null("/root/Stable")
+	if stable and _ridden >= 25.0:
+		stable.ride(stable.selected, _ridden)
+		_ridden = 0.0
+		set_dirt(1.0 - stable.care[stable.selected].clean)
 
 
 func _animate(delta: float) -> void:
@@ -278,6 +303,7 @@ func _coat(original: Material) -> ShaderMaterial:
 		_coat_material.shader = preload("res://shaders/coat.gdshader")
 		_coat_material.set_shader_parameter("albedo_texture", (original as BaseMaterial3D).albedo_texture)
 		set_coat(coat_color, points_color, coat_strength)
+		set_dirt(dirt)
 	return _coat_material
 
 
