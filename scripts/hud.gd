@@ -41,6 +41,19 @@ func _ready() -> void:
 		var help := _panel_label(root, Control.PRESET_TOP_RIGHT, Vector2(-20, 20), 15)
 		help.text = "W / S  ride on / slow down\nA / D  steer\nQ / E or 0-4  gait\nSpace  jump\nDrag  look around"
 
+	var stable := Button.new()
+	stable.text = "Stable"
+	stable.focus_mode = Control.FOCUS_NONE
+	stable.custom_minimum_size = Vector2(120, 48)
+	stable.add_theme_font_size_override("font_size", 18)
+	for state in ["normal", "hover", "pressed"]:
+		stable.add_theme_stylebox_override(state, _panel_style())
+	stable.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/stable.tscn"))
+	root.add_child(stable)
+	stable.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	stable.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	stable.position.y += 20
+
 	_horse.gait_changed.connect(_on_gait_changed)
 	_horse.jump_refused.connect(func(): show_message("Trot or faster to jump!"))
 	course.status_changed.connect(func(text): _status.text = text)

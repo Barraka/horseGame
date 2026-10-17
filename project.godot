@@ -7,12 +7,13 @@ config_version=5
 
 config/name="Horse Game"
 config/description="Ride, care for and collect horses. Riding prototype."
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/stable.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [autoload]
 
 GameInput="*res://scripts/game_input.gd"
+Stable="*res://scripts/stable_data.gd"
 
 [display]
 

@@ -53,6 +53,7 @@ const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, 
 @export var model_yaw_offset := 0.0    ## Degrees; try 180 if the model rides backwards
 @export var coat_color := Color(0.5, 0.26, 0.12)   ## Bay
 @export var points_color := Color(0.08, 0.06, 0.05) ## Mane, tail and lower legs
+@export_range(0.0, 1.0) var coat_strength := 1.0    ## 0 keeps the model's own painted coat
 
 var target_gait := 0
 var current_gait := 0
@@ -69,6 +70,7 @@ var _set_models: Array[Node3D] = []
 var _set_players: Array[AnimationPlayer] = []
 var _set_scale := 1.0
 var _set_active := -1
+var _coat_material: ShaderMaterial
 var _phase := 0.0
 
 
@@ -76,6 +78,12 @@ func _ready() -> void:
 	_visual = Node3D.new()
 	_visual.name = "Visual"
 	add_child(_visual)
+	var stable := get_node_or_null("/root/Stable")
+	if stable and not Engine.is_editor_hint():
+		var horse: Dictionary = stable.current()
+		coat_color = horse.body
+		points_color = horse.points
+		coat_strength = horse.strength
 	if ResourceLoader.exists(gait_set_dir.path_join(GAIT_SET[0].file)):
 		_build_gait_set()
 	elif ResourceLoader.exists(model_path):
@@ -90,6 +98,25 @@ func _ready() -> void:
 func set_gait(index: int) -> void:
 	target_gait = clampi(index, 0, GAITS.size() - 1)
 	gait_changed.emit(target_gait)
+
+
+## Change the coat colours (on the gait set horse).
+func set_coat(body: Color, points: Color, strength := 1.0) -> void:
+	coat_color = body
+	points_color = points
+	coat_strength = strength
+	if _coat_material:
+		_coat_material.set_shader_parameter("body_color", body)
+		_coat_material.set_shader_parameter("points_color", points)
+		_coat_material.set_shader_parameter("strength", strength)
+
+
+## Stand still in the halt pose, for when the horse isn't being ridden.
+func stand() -> void:
+	if not _set_models.is_empty():
+		_show_gait_model(GAIT_SET_FOR_GAIT[0])
+		_set_players[_set_active].seek(0.0, true)
+		_set_players[_set_active].pause()
 
 
 func jump() -> bool:
@@ -215,6 +242,8 @@ func _build_gait_set() -> void:
 			var mi := node as MeshInstance3D
 			if mi.mesh and mi.mesh.get_blend_shape_count() == 0:
 				mi.visible = false
+			elif mi.mesh:
+				mi.material_override = _coat(mi.mesh.surface_get_material(0))
 		var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 		var clip := player.get_animation_list()[0]
 		player.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
@@ -223,6 +252,16 @@ func _build_gait_set() -> void:
 		_set_models.append(model)
 		_set_players.append(player)
 	_show_gait_model(0)
+
+
+## All three files share one coat texture, so they share one coat material.
+func _coat(original: Material) -> ShaderMaterial:
+	if not _coat_material:
+		_coat_material = ShaderMaterial.new()
+		_coat_material.shader = preload("res://shaders/coat.gdshader")
+		_coat_material.set_shader_parameter("albedo_texture", (original as BaseMaterial3D).albedo_texture)
+		set_coat(coat_color, points_color, coat_strength)
+	return _coat_material
 
 
 func _show_gait_model(index: int) -> void:
