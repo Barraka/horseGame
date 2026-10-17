@@ -8,3 +8,4 @@ export_credentials.cfg
 # Old web version
 node_modules/
 .env
+__pycache__/
