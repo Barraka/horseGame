@@ -33,26 +33,30 @@ const JUMP_CLIPS := ["jump"]
 ## (their licence forbids edits), so these numbers, measured from them in the
 ## model's own units, line each one up:
 ## - yaw turns its head to face forward (-Z);
-## - offset centres its body on the horse;
+## - offset puts its saddle spot (see tools/saddle_track.py) on the horse's middle;
 ## - speed is how fast the hooves move the horse when played at normal speed;
-## - root_motion is how fast the clip itself travels forward, cancelled out
-##   so the horse runs on the spot.
+## - root_motion marks a clip that travels forward through space (along its
+##   X axis); it is cancelled out by pinning the saddle spot in place, so the
+##   horse runs on the spot.
 const GAIT_SET := [
-	{"file": "horse_walk.glb", "yaw": 180.0, "offset": Vector3(0.09, 0.03, -10.66), "speed": 12.1, "root_motion": 0.0},
-	{"file": "horse_trot.glb", "yaw": 180.0, "offset": Vector3(0.01, 0.03, -6.93), "speed": 22.5, "root_motion": 0.0},
-	{"file": "horse_run.glb", "yaw": 90.0, "offset": Vector3(-2.67, -0.66, 0.0), "speed": 65.5, "root_motion": 65.5},
+	{"file": "horse_walk.glb", "yaw": 180.0, "offset": Vector3(0.09, 0.03, -0.76), "speed": 12.1, "root_motion": false},
+	{"file": "horse_trot.glb", "yaw": 180.0, "offset": Vector3(0.01, 0.03, -0.82), "speed": 22.5, "root_motion": false},
+	{"file": "horse_run.glb", "yaw": 90.0, "offset": Vector3(-1.24, -0.66, 0.0), "speed": 77.1, "root_motion": true},
 ]
 const GAIT_SET_FOR_GAIT := [0, 0, 1, 2, 2]   ## Halt pauses the walk; canter is a slower gallop
 const GAIT_SET_JUMP := 2                      ## Jumps hold the gallop's moment of flight...
 const GAIT_SET_JUMP_TIME := 0.167             ## ...which is this far into the clip
 const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, in model units
+const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's back, in metres
 
 @export_dir var gait_set_dir := "res://assets/horse/gaits"
+@export var with_rider := true   ## Seat the player's rider on the gait set horse
 @export_file("*.glb", "*.gltf") var model_path := "res://assets/horse/horse.glb"
 @export var model_length := 2.6        ## Nose-to-tail length in metres
 @export var model_yaw_offset := 0.0    ## Degrees; try 180 if the model rides backwards
 @export var coat_color := Color(0.5, 0.26, 0.12)   ## Bay
 @export var points_color := Color(0.08, 0.06, 0.05) ## Mane, tail and lower legs
+@export_range(0.0, 1.0) var coat_strength := 1.0    ## 0 keeps the model's own painted coat
 
 var target_gait := 0
 var current_gait := 0
@@ -69,6 +73,11 @@ var _set_models: Array[Node3D] = []
 var _set_players: Array[AnimationPlayer] = []
 var _set_scale := 1.0
 var _set_active := -1
+var _coat_material: ShaderMaterial
+var _saddle_track: Dictionary = {}   # Where the back moves in each gait clip (tools/saddle_track.py)
+var _saddle: Node3D                  # Saddle and rider, moved with the horse's back
+var _rider: Node3D
+var _rest_pitch := 0.0
 var _phase := 0.0
 
 
@@ -76,6 +85,12 @@ func _ready() -> void:
 	_visual = Node3D.new()
 	_visual.name = "Visual"
 	add_child(_visual)
+	var stable := get_node_or_null("/root/Stable")
+	if stable and not Engine.is_editor_hint():
+		var horse: Dictionary = stable.current()
+		coat_color = horse.body
+		points_color = horse.points
+		coat_strength = horse.strength
 	if ResourceLoader.exists(gait_set_dir.path_join(GAIT_SET[0].file)):
 		_build_gait_set()
 	elif ResourceLoader.exists(model_path):
@@ -90,6 +105,26 @@ func _ready() -> void:
 func set_gait(index: int) -> void:
 	target_gait = clampi(index, 0, GAITS.size() - 1)
 	gait_changed.emit(target_gait)
+
+
+## Change the coat colours (on the gait set horse).
+func set_coat(body: Color, points: Color, strength := 1.0) -> void:
+	coat_color = body
+	points_color = points
+	coat_strength = strength
+	if _coat_material:
+		_coat_material.set_shader_parameter("body_color", body)
+		_coat_material.set_shader_parameter("points_color", points)
+		_coat_material.set_shader_parameter("strength", strength)
+
+
+## Stand still in the halt pose, for when the horse isn't being ridden.
+func stand() -> void:
+	if not _set_models.is_empty():
+		_show_gait_model(GAIT_SET_FOR_GAIT[0])
+		_set_players[_set_active].seek(0.0, true)
+		_set_players[_set_active].pause()
+		_follow_back()
 
 
 func jump() -> bool:
@@ -179,7 +214,7 @@ func _animate(delta: float) -> void:
 	var pitch := clampf(velocity.y * 0.05, -0.25, 0.25) if jumping else 0.0
 	_visual.rotation.x = lerpf(_visual.rotation.x, pitch, 1.0 - exp(-8.0 * delta))
 	if not _set_models.is_empty():
-		_animate_gait_set()
+		_animate_gait_set(delta)
 	elif _anim:
 		if jumping and _jump_anim:
 			if _anim.current_animation != _jump_anim:
@@ -202,6 +237,8 @@ func _animate(delta: float) -> void:
 
 func _build_gait_set() -> void:
 	_set_scale = model_length / GAIT_SET_LENGTH
+	var file := FileAccess.open(gait_set_dir.path_join("saddle_track.json"), FileAccess.READ)
+	_saddle_track = JSON.parse_string(file.get_as_text())
 	for entry in GAIT_SET:
 		var pivot := Node3D.new()
 		pivot.scale = Vector3.ONE * _set_scale
@@ -215,14 +252,33 @@ func _build_gait_set() -> void:
 			var mi := node as MeshInstance3D
 			if mi.mesh and mi.mesh.get_blend_shape_count() == 0:
 				mi.visible = false
+			elif mi.mesh:
+				mi.material_override = _coat(mi.mesh.surface_get_material(0))
+				# A clip that travels moves its vertices far from the mesh's
+				# bounds, which would get the horse culled as off screen.
+				if entry.root_motion:
+					mi.extra_cull_margin = 1000.0
 		var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 		var clip := player.get_animation_list()[0]
 		player.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
 		player.assigned_animation = clip
 		pivot.visible = false
 		_set_models.append(model)
+		player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		_set_players.append(player)
 	_show_gait_model(0)
+	if with_rider:
+		_build_saddle()
+
+
+## All three files share one coat texture, so they share one coat material.
+func _coat(original: Material) -> ShaderMaterial:
+	if not _coat_material:
+		_coat_material = ShaderMaterial.new()
+		_coat_material.shader = preload("res://shaders/coat.gdshader")
+		_coat_material.set_shader_parameter("albedo_texture", (original as BaseMaterial3D).albedo_texture)
+		set_coat(coat_color, points_color, coat_strength)
+	return _coat_material
 
 
 func _show_gait_model(index: int) -> void:
@@ -242,7 +298,7 @@ func _show_gait_model(index: int) -> void:
 	player.seek(phase * player.current_animation_length, true)
 
 
-func _animate_gait_set() -> void:
+func _animate_gait_set(delta: float) -> void:
 	var index: int = GAIT_SET_JUMP if jumping else GAIT_SET_FOR_GAIT[current_gait]
 	_show_gait_model(index)
 	var player := _set_players[index]
@@ -257,8 +313,94 @@ func _animate_gait_set() -> void:
 			player.play()
 		var native: float = entry.speed * _set_scale
 		player.speed_scale = clampf(absf(speed) / native, 0.5, 2.2)
+		# Stepped here rather than on its own, so the saddle and the root
+		# motion below follow the exact frame that gets drawn.
+		player.advance(delta)
 	var model := _set_models[index]
-	model.position.x = entry.offset.x - entry.root_motion * player.current_animation_position
+	if entry.root_motion:
+		var travel := _track_point(index, "seat", player.current_animation_position).x - _track_point(index, "seat", 0.0).x
+		model.position.x = entry.offset.x - travel
+	_follow_back()
+
+
+## A saddle with the player's rider on it. It has no bones to hang on (the
+## horse is animated with blend shapes), so _follow_back() moves it along
+## with the measured points on the horse's back.
+func _build_saddle() -> void:
+	_saddle = Node3D.new()
+	_saddle.name = "Saddle"
+	_visual.add_child(_saddle)
+
+	var pad := StandardMaterial3D.new()
+	pad.albedo_color = Color(0.95, 0.94, 0.9)
+	pad.roughness = 0.9
+	var leather := StandardMaterial3D.new()
+	leather.albedo_color = Color(0.28, 0.15, 0.08)
+	leather.roughness = 0.45
+	for part in [[0.31, 0.6, pad, -0.29], [0.3, 0.46, leather, -0.27]]:
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = part[0]
+		mesh.bottom_radius = part[0]
+		mesh.height = part[1]
+		mesh.radial_segments = 32
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.material_override = part[2]
+		mi.rotation.x = PI / 2
+		mi.position.y = part[3]
+		_saddle.add_child(mi)
+
+	var rider_data := get_node_or_null("/root/RiderData")
+	_rider = preload("res://scripts/rider.gd").new()
+	_saddle.add_child(_rider)
+	_rider.build(rider_data.config if rider_data and not Engine.is_editor_hint() else {})
+	_rider.set_pose("ride")
+	_rider.rotation.y = PI   # The rider model faces +Z, the horse -Z
+	_rider.position.y = SADDLE_HEIGHT - _rider.HIP_HEIGHT
+	_rest_pitch = _back_pitch(_back_points(0, 0.0))
+	_follow_back()
+
+
+## Where a measured point on the horse's back (croup, seat or withers) is in
+## gait clip `index` at `time`, in the file's own space. Interpolated between
+## keyframes the same way the animation is.
+func _track_point(index: int, mark: String, time: float) -> Vector3:
+	var track: Dictionary = _saddle_track[GAIT_SET[index].file]
+	var times: Array = track.times
+	var frame := times.size() - 1
+	for i in times.size():
+		if times[i] > time:
+			frame = i
+			break
+	var prev := maxi(frame - 1, 0)
+	var t := 0.0 if frame == prev else clampf((time - times[prev]) / (times[frame] - times[prev]), 0.0, 1.0)
+	var a: Array = track[mark][prev]
+	var b: Array = track[mark][frame]
+	return Vector3(a[0], a[1], a[2]).lerp(Vector3(b[0], b[1], b[2]), t)
+
+
+## The croup, seat and withers of gait clip `index` at `time`, in _visual's space.
+func _back_points(index: int, time: float) -> Array[Vector3]:
+	var model := _set_models[index]
+	var to_visual: Transform3D = (model.get_parent() as Node3D).transform * model.transform
+	var points: Array[Vector3] = []
+	for mark in ["croup", "seat", "withers"]:
+		points.append(to_visual * _track_point(index, mark, time))
+	return points
+
+
+func _back_pitch(points: Array[Vector3]) -> float:
+	var along := points[2] - points[0]
+	return atan2(along.y, Vector2(along.x, along.z).length())
+
+
+func _follow_back() -> void:
+	if not _saddle or _saddle_track.is_empty():
+		return
+	var player := _set_players[_set_active]
+	var points := _back_points(_set_active, player.current_animation_position)
+	_saddle.position = points[1]
+	_saddle.rotation.x = _back_pitch(points) - _rest_pitch
 
 
 # --- Real model -------------------------------------------------------------

@@ -20,6 +20,10 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 
 On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons bottom right; drag on the open screen to look around.
 
+**Stable:** the game opens in your stable. Use the arrows (or ← / →) to look through your six horses, drag to turn the horse around, and press **Ride** (or Enter). The **Stable** button at the top of the riding screen takes you back. The game remembers which horse you picked. To add or change horses, edit the list in `scripts/stable_data.gd`.
+
+**Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
+
 **Show jumping:** ride through the green START gate, jump fences 1 to 5 in order, then ride through FINISH. A knocked rail costs 4 faults.
 
 To change the course, open `scenes/main.tscn` and expand **Course** in the scene tree. Each fence and gate is its own object: select it and drag or rotate it in the 3D view (the green arrow on the ground shows the jumping direction). Change a fence's height in the Inspector. Fences are jumped in the order they're listed; duplicate one with Ctrl+D to add a fence.
@@ -43,6 +47,15 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | Path | What it is |
 | --- | --- |
 | `scenes/main.tscn` | The game scene: sky and lighting, world, horse, camera, course, HUD |
+| `scenes/stable.tscn`, `scripts/stable.gd` | The stable screen where you pick a horse |
+| `scripts/stable_data.gd` | Your horses (names and coat colours) and which one you ride |
+| `scenes/rider_creator.tscn`, `scripts/rider_creator.gd` | The screen where you design your rider |
+| `scripts/rider.gd` | The rider: puts the character parts together and poses them; add options to its lists |
+| `scripts/rider_data.gd` | How your rider looks, saved between games |
+| `assets/rider/` | Character parts (bodies, heads, hair, outfits) from Quaternius |
+| `tools/prepare_rider.py` | Copies the character parts out of the Quaternius downloads into `assets/rider/` |
+| `tools/saddle_track.py` | Measures where the saddle sits on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
+| `shaders/coat.gdshader` | Recolours the horse's coat |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
 | `scripts/world.gd` | Terrain, arena, trees, rocks, grass and flowers |
 | `scripts/course.gd`, `scripts/fence.gd`, `scripts/gate.gd` | Show jumping course, scoring, fences and gates |
