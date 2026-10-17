@@ -1,2 +1,10 @@
+# Godot
+.godot/
+/android/
+*.translation
+export_credentials.cfg
+/builds/
+
+# Old web version
 node_modules/
 .env
