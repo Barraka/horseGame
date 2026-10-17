@@ -48,9 +48,11 @@ const GAIT_SET_JUMP := 2                      ## Jumps hold the gallop's moment 
 const GAIT_SET_JUMP_TIME := 0.167             ## ...which is this far into the clip
 const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, in model units
 const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's back, in metres
+const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "fr_low", "fr_high", "hl_low", "hl_high", "hr_low", "hr_high"]
 
 @export_dir var gait_set_dir := "res://assets/horse/gaits"
 @export var with_rider := true   ## Seat the player's rider on the gait set horse
+@export var tack: Dictionary = {}  ## Tack colours (see tack.gd), when not from the stable
 @export_file("*.glb", "*.gltf") var model_path := "res://assets/horse/horse.glb"
 @export var model_length := 2.6        ## Nose-to-tail length in metres
 @export var model_yaw_offset := 0.0    ## Degrees; try 180 if the model rides backwards
@@ -78,6 +80,7 @@ var _coat_material: ShaderMaterial
 var _saddle_track: Dictionary = {}   # Where the back moves in each gait clip (tools/saddle_track.py)
 var _saddle: Node3D                  # Saddle and rider, moved with the horse's back
 var _rider: Node3D
+var _tack: Node3D
 var _rest_pitch := 0.0
 var _phase := 0.0
 var _ridden := 0.0   # Metres ridden since the stable was last told
@@ -94,6 +97,7 @@ func _ready() -> void:
 		points_color = horse.points
 		coat_strength = horse.strength
 		dirt = 1.0 - stable.care[stable.selected].clean
+		tack = stable.tack[stable.selected]
 	if ResourceLoader.exists(gait_set_dir.path_join(GAIT_SET[0].file)):
 		_build_gait_set()
 	elif ResourceLoader.exists(model_path):
@@ -119,6 +123,14 @@ func set_coat(body: Color, points: Color, strength := 1.0) -> void:
 		_coat_material.set_shader_parameter("body_color", body)
 		_coat_material.set_shader_parameter("points_color", points)
 		_coat_material.set_shader_parameter("strength", strength)
+
+
+## Dress the horse in tack of these colours (see tack.gd).
+func set_tack(config: Dictionary) -> void:
+	tack = config
+	if _tack:
+		_tack.build(config, _saddle)
+		_follow_back()
 
 
 ## How muddy the horse looks, from 0 (spotless) to 1.
@@ -292,8 +304,7 @@ func _build_gait_set() -> void:
 		player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		_set_players.append(player)
 	_show_gait_model(0)
-	if with_rider:
-		_build_saddle()
+	_build_saddle()
 
 
 ## All three files share one coat texture, so they share one coat material.
@@ -349,45 +360,33 @@ func _animate_gait_set(delta: float) -> void:
 	_follow_back()
 
 
-## A saddle with the player's rider on it. It has no bones to hang on (the
-## horse is animated with blend shapes), so _follow_back() moves it along
-## with the measured points on the horse's back.
+## The tack (scripts/tack.gd), with the player's rider in the saddle when
+## with_rider is on. The horse has no bones to hang them on (it is animated
+## with blend shapes), so _follow_back() moves them along with the measured
+## points on its back, head and legs.
 func _build_saddle() -> void:
 	_saddle = Node3D.new()
 	_saddle.name = "Saddle"
 	_visual.add_child(_saddle)
+	_tack = preload("res://scripts/tack.gd").new()
+	_tack.name = "Tack"
+	_visual.add_child(_tack)
 
-	var pad := StandardMaterial3D.new()
-	pad.albedo_color = Color(0.95, 0.94, 0.9)
-	pad.roughness = 0.9
-	var leather := StandardMaterial3D.new()
-	leather.albedo_color = Color(0.28, 0.15, 0.08)
-	leather.roughness = 0.45
-	for part in [[0.31, 0.6, pad, -0.29], [0.3, 0.46, leather, -0.27]]:
-		var mesh := CylinderMesh.new()
-		mesh.top_radius = part[0]
-		mesh.bottom_radius = part[0]
-		mesh.height = part[1]
-		mesh.radial_segments = 32
-		var mi := MeshInstance3D.new()
-		mi.mesh = mesh
-		mi.material_override = part[2]
-		mi.rotation.x = PI / 2
-		mi.position.y = part[3]
-		_saddle.add_child(mi)
-
-	var rider_data := get_node_or_null("/root/RiderData")
-	_rider = preload("res://scripts/rider.gd").new()
-	_saddle.add_child(_rider)
-	_rider.build(rider_data.config if rider_data and not Engine.is_editor_hint() else {})
-	_rider.set_pose("ride")
-	_rider.rotation.y = PI   # The rider model faces +Z, the horse -Z
-	_rider.position.y = SADDLE_HEIGHT - _rider.HIP_HEIGHT
+	if with_rider:
+		var rider_data := get_node_or_null("/root/RiderData")
+		_rider = preload("res://scripts/rider.gd").new()
+		_saddle.add_child(_rider)
+		_rider.build(rider_data.config if rider_data and not Engine.is_editor_hint() else {})
+		_rider.set_pose("ride")
+		_rider.rotation.y = PI   # The rider model faces +Z, the horse -Z
+		_rider.position.y = SADDLE_HEIGHT - _rider.HIP_HEIGHT
+		_tack.rider = _rider
+	_tack.build(tack, _saddle)
 	_rest_pitch = _back_pitch(_back_points(0, 0.0))
 	_follow_back()
 
 
-## Where a measured point on the horse's back (croup, seat or withers) is in
+## Where a measured point on the horse (see tools/saddle_track.py) is in
 ## gait clip `index` at `time`, in the file's own space. Interpolated between
 ## keyframes the same way the animation is.
 func _track_point(index: int, mark: String, time: float) -> Vector3:
@@ -427,6 +426,23 @@ func _follow_back() -> void:
 	var points := _back_points(_set_active, player.current_animation_position)
 	_saddle.position = points[1]
 	_saddle.rotation.x = _back_pitch(points) - _rest_pitch
+	var track: Dictionary = _saddle_track[GAIT_SET[_set_active].file]
+	var radii := {}
+	for mark in TACK_MARKS:
+		if track.has(mark + "_radius"):
+			radii[mark] = track[mark + "_radius"] * _set_scale
+	_tack.follow(_tack_marks(), radii, _saddle.transform)
+
+
+## Everything else the tack hangs on, in _visual's space, right now.
+func _tack_marks() -> Dictionary:
+	var model := _set_models[_set_active]
+	var to_visual: Transform3D = (model.get_parent() as Node3D).transform * model.transform
+	var time := _set_players[_set_active].current_animation_position
+	var marks := {}
+	for mark in TACK_MARKS:
+		marks[mark] = to_visual * _track_point(_set_active, mark, time)
+	return marks
 
 
 # --- Real model -------------------------------------------------------------

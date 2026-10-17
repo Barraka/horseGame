@@ -31,6 +31,7 @@ signal care_changed(index: int)
 
 var selected := 0
 var care: Array[Dictionary] = []
+var tack: Array[Dictionary] = []   ## Each horse's tack colours (tack.gd OPTIONS)
 var discovered: Array = []   ## Ids of the places found while exploring (world.gd PLACES)
 var _saved_time := 0.0
 
@@ -40,6 +41,7 @@ func _init() -> void:
 		# A new horse arrives a little hungry and dusty, so there's
 		# something to do straight away.
 		care.append({"food": 0.6, "clean": 0.5, "love": 0.5})
+		tack.append({})
 
 
 func _ready() -> void:
@@ -49,6 +51,7 @@ func _ready() -> void:
 		for i in HORSES.size():
 			for key in CARE_KEYS:
 				care[i][key] = config.get_value("care", "%s_%d" % [key, i], care[i][key])
+			tack[i] = config.get_value("tack", str(i), {})
 		_saved_time = config.get_value("care", "time", 0.0)
 		discovered = config.get_value("explore", "discovered", [])
 	# Time passes while the game is closed.
@@ -76,6 +79,11 @@ func select(index: int) -> void:
 func happiness(index: int) -> float:
 	var c: Dictionary = care[index]
 	return (c.food + c.clean + c.love) / 3.0
+
+
+func set_tack(index: int, config: Dictionary) -> void:
+	tack[index] = config.duplicate()
+	_save()
 
 
 ## Remember a place as found. Returns false if it was found before.
@@ -135,5 +143,7 @@ func _save() -> void:
 		for key in CARE_KEYS:
 			config.set_value("care", "%s_%d" % [key, i], care[i][key])
 	config.set_value("care", "time", _saved_time)
+	for i in HORSES.size():
+		config.set_value("tack", str(i), tack[i])
 	config.set_value("explore", "discovered", discovered)
 	config.save(SAVE_PATH)

@@ -1,8 +1,10 @@
 extends Node3D
-## The stable: browse your horses, see each one up close, and pick one to ride.
+## The stable: browse your horses, see each one up close, look after them,
+## choose their tack, and pick one to ride.
 
 const Horse := preload("res://scripts/horse.gd")
 const HorseCare := preload("res://scripts/horse_care.gd")
+const TackPanel := preload("res://scripts/tack_panel.gd")
 const RIDE_SCENE := "res://scenes/main.tscn"
 const RIDER_SCENE := "res://scenes/rider_creator.tscn"
 const CAMERA_POS := Vector3(4.5, 1.8, 5.1)
@@ -11,6 +13,7 @@ const CAMERA_TARGET := Vector3(0, 0.55, 0)   ## Below the horse, so it stands ab
 var _index := 0
 var _horse: Node3D
 var _care: Node3D
+var _tack: Node
 var _camera: Camera3D
 var _turntable: Node3D
 var _name_label: Label
@@ -69,6 +72,7 @@ func _show_horse() -> void:
 	_coat_label.text = horse.coat
 	_ride_button.text = "Ride %s" % horse.name
 	_care.show_horse(_index)
+	_tack.show_horse(_index)
 	for i in _dots.get_child_count():
 		_dots.get_child(i).modulate.a = 1.0 if i == _index else 0.35
 
@@ -268,6 +272,9 @@ func _build_ui() -> void:
 	_care = HorseCare.new()
 	add_child(_care)
 	_care.setup(_horse, _camera, root)
+	_tack = TackPanel.new()
+	add_child(_tack)
+	_tack.setup(_horse, root)
 
 
 func _label(text: String, font_size: int) -> Label:
