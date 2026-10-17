@@ -1,22 +1,36 @@
+@tool
 extends Node3D
 ## Show jumping course: ride through START, jump the fences in order,
 ## then ride through FINISH. Each knocked rail costs 4 faults.
-## Fence positions can be edited in the Inspector (x, z, height).
+## Fence positions can be edited in the Inspector (x, z, height); the
+## editor redraws the course as you change them.
 
 signal status_changed(text: String)
 signal announce(text: String)
 
 @export var horse_path: NodePath
-@export var start_gate := Vector2(0, -6)
-@export var finish_gate := Vector2(8, -12)
+@export var start_gate := Vector2(0, -6):
+	set(value):
+		start_gate = value
+		_rebuild()
+@export var finish_gate := Vector2(8, -12):
+	set(value):
+		finish_gate = value
+		_rebuild()
 @export var fences: Array[Vector3] = [
 	Vector3(0, -18, 0.6),
 	Vector3(-12, -32, 0.7),
 	Vector3(-6, -52, 0.8),
 	Vector3(10, -54, 0.8),
 	Vector3(14, -34, 0.9),
-]
-@export var width := 4.0
+]:
+	set(value):
+		fences = value
+		_rebuild()
+@export var width := 4.0:
+	set(value):
+		width = value
+		_rebuild()
 @export var clearance := 0.3   ## Hooves tuck up this far below the horse
 
 enum State { READY, RIDING, DONE }
@@ -34,8 +48,26 @@ var _finish: Dictionary
 
 
 func _ready() -> void:
+	_build()
+	if Engine.is_editor_hint():
+		return
 	_horse = get_node(horse_path)
 	_last_pos = _horse.global_position
+	_update_status.call_deferred()
+
+
+func _rebuild() -> void:
+	if is_inside_tree():
+		_build()
+
+
+func _build() -> void:
+	# Every child of this node is generated here, so clear them all first.
+	for child in get_children():
+		child.free()
+	_lines.clear()
+	if fences.is_empty():
+		return
 	var colors := [Color(0.85, 0.15, 0.15), Color(0.15, 0.32, 0.8)]
 	var points: Array[Vector2] = [start_gate]
 	for f in fences:
@@ -51,10 +83,11 @@ func _ready() -> void:
 	_finish = {"pos": finish_gate, "dir": (finish_gate - points[points.size() - 2]).normalized()}
 	_build_gate(_start, "START", Color(0.2, 0.7, 0.3))
 	_build_gate(_finish, "FINISH", Color(0.85, 0.2, 0.2))
-	_update_status.call_deferred()
 
 
 func _physics_process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	var pos := _horse.global_position
 	var from := Vector2(_last_pos.x, _last_pos.z)
 	var to := Vector2(pos.x, pos.z)

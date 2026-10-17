@@ -1,7 +1,9 @@
+@tool
 extends Node3D
 ## Builds the meadow: rolling grassy terrain, a sand riding arena,
 ## trees, rocks, grass tufts and flowers. Everything is generated from
-## a seed, so the world looks the same every time.
+## a seed, so the world looks the same every time. It also runs in the
+## editor; reopen the scene to see changes to the settings below.
 
 @export var world_seed := 7
 @export var size := 240.0              ## Terrain width and depth in metres

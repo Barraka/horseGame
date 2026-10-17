@@ -1,3 +1,4 @@
+@tool
 extends CharacterBody3D
 ## The player's horse: gaits, steering, jumping, and its look.
 ## If a horse model exists at model_path it is used (with its animations);
@@ -98,6 +99,8 @@ func _read_buttons() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	_read_buttons()
 	var forward := Input.is_action_pressed("ride_forward")
 	var back := Input.is_action_pressed("ride_back")
