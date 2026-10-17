@@ -29,6 +29,8 @@ func _ready() -> void:
 	_build_terrain()
 	_build_arena()
 	_scatter_trees()
+	_scatter_bushes()
+	_build_flower_beds()
 	_scatter_rocks()
 	_scatter_grass()
 	_scatter_flowers()
@@ -82,8 +84,23 @@ func _build_terrain() -> void:
 			st.add_index(i + cells + 1)
 	st.generate_normals()
 
+	# A fine mottled pattern over the grass colours so the ground doesn't look flat.
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.72, 0.78, 0.68))
+	ramp.set_color(1, Color(1.05, 1.05, 0.98))
+	var grain := FastNoiseLite.new()
+	grain.frequency = 0.06
+	grain.fractal_octaves = 4
+	var grain_texture := NoiseTexture2D.new()
+	grain_texture.noise = grain
+	grain_texture.color_ramp = ramp
+	grain_texture.seamless = true
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = grain_texture
+	mat.uv1_triplanar = true
+	mat.uv1_world_triplanar = true
+	mat.uv1_scale = Vector3(0.12, 0.12, 0.12)
 	mat.roughness = 0.95
 
 	var mesh_instance := MeshInstance3D.new()
@@ -212,50 +229,108 @@ func _vertex_color_material(roughness := 0.9) -> StandardMaterial3D:
 	return mat
 
 
+func _sphere(radius: float, segments := 10, rings := 6) -> SphereMesh:
+	var m := SphereMesh.new()
+	m.radius = radius
+	m.height = radius * 2.0
+	m.radial_segments = segments
+	m.rings = rings
+	return m
+
+
+## Broadleaf trees have a fluffy crown made of several overlapping leaf
+## clumps; pines are three stacked cones.
 func _scatter_trees() -> void:
 	var trunk_mesh := CylinderMesh.new()
-	trunk_mesh.top_radius = 0.16
-	trunk_mesh.bottom_radius = 0.26
-	trunk_mesh.height = 2.0
-	trunk_mesh.radial_segments = 6
-	var crown_mesh := SphereMesh.new()
-	crown_mesh.radius = 1.4
-	crown_mesh.height = 2.6
-	crown_mesh.radial_segments = 8
-	crown_mesh.rings = 5
+	trunk_mesh.top_radius = 0.14
+	trunk_mesh.bottom_radius = 0.28
+	trunk_mesh.height = 2.6
+	trunk_mesh.radial_segments = 7
 	var pine_mesh := CylinderMesh.new()
 	pine_mesh.top_radius = 0.0
-	pine_mesh.bottom_radius = 1.4
-	pine_mesh.height = 3.6
-	pine_mesh.radial_segments = 7
+	pine_mesh.bottom_radius = 1.5
+	pine_mesh.height = 2.6
+	pine_mesh.radial_segments = 9
 
+	var clumps_per_tree := 6
 	var trunks := _multimesh(trunk_mesh, tree_count, _vertex_color_material(), "TreeTrunks")
-	var crowns := _multimesh(crown_mesh, tree_count, _vertex_color_material(), "TreeCrowns")
-	var pines := _multimesh(pine_mesh, tree_count * 2, _vertex_color_material(), "PineLayers")
-	pines.visible_instance_count = 0
-	var pine_layers := 0
+	var clumps := _multimesh(_sphere(1.0), tree_count * clumps_per_tree, _vertex_color_material(0.8), "LeafClumps")
+	var pines := _multimesh(pine_mesh, tree_count * 3, _vertex_color_material(0.8), "PineLayers")
+	var clump_count := 0
+	var pine_count := 0
 
 	for i in tree_count:
 		var spot := _random_spot(8.0)
 		var s := rng.randf_range(0.8, 1.5)
 		var yaw := Basis(Vector3.UP, rng.randf() * TAU)
-		trunks.set_instance_transform(i, Transform3D(yaw.scaled(Vector3.ONE * s), spot + Vector3(0, s, 0)))
-		trunks.set_instance_color(i, Color(0.42, 0.29, 0.18))
-		if rng.randf() < 0.4 and pine_layers + 2 <= tree_count * 2:
-			# Pine: two stacked cones instead of a round crown.
-			crowns.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ZERO), spot))
-			for layer in 2:
-				var ls := s * (1.0 - layer * 0.3)
-				var pos := spot + Vector3(0, s * (2.4 + layer * 1.3), 0)
-				pines.set_instance_transform(pine_layers, Transform3D(yaw.scaled(Vector3.ONE * ls), pos))
-				pines.set_instance_color(pine_layers, Color(0.13, 0.33, 0.2).lightened(rng.randf() * 0.1))
-				pine_layers += 1
+		trunks.set_instance_transform(i, Transform3D(yaw.scaled(Vector3.ONE * s), spot + Vector3(0, 1.3 * s, 0)))
+		trunks.set_instance_color(i, Color(0.4, 0.28, 0.18))
+		if rng.randf() < 0.3:
+			for layer in 3:
+				var ls := s * (1.0 - layer * 0.25)
+				var pos := spot + Vector3(0, s * (2.2 + layer * 1.15), 0)
+				pines.set_instance_transform(pine_count, Transform3D(yaw.scaled(Vector3.ONE * ls), pos))
+				pines.set_instance_color(pine_count, Color(0.12, 0.34, 0.2).lightened(layer * 0.05))
+				pine_count += 1
 		else:
-			var crown_basis := yaw.scaled(Vector3(s, s * rng.randf_range(0.85, 1.15), s))
-			crowns.set_instance_transform(i, Transform3D(crown_basis, spot + Vector3(0, s * 2.9, 0)))
-			var green := Color(0.24, 0.5, 0.17).lerp(Color(0.45, 0.6, 0.2), rng.randf())
-			crowns.set_instance_color(i, green)
-	pines.visible_instance_count = pine_layers
+			var crown := spot + Vector3(0, s * 3.4, 0)
+			var green := Color(0.22, 0.48, 0.15).lerp(Color(0.42, 0.62, 0.18), rng.randf())
+			for c in clumps_per_tree:
+				var offset := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.5, 0.8), rng.randf_range(-1, 1)) * s
+				var r := s * rng.randf_range(0.9, 1.4)
+				clumps.set_instance_transform(clump_count, Transform3D(Basis().scaled(Vector3(r, r * 0.85, r)), crown + offset))
+				# Lighter clumps on top, as if lit by the sun.
+				clumps.set_instance_color(clump_count, green.lightened(clampf(offset.y * 0.12 + 0.05, 0.0, 0.2)))
+				clump_count += 1
+	clumps.visible_instance_count = clump_count
+	pines.visible_instance_count = pine_count
+
+
+## Round bushes scattered in the meadow and along the arena fence.
+func _scatter_bushes() -> void:
+	var count := 140
+	var bushes := _multimesh(_sphere(1.0, 8, 5), count * 3, _vertex_color_material(0.85), "Bushes")
+	var placed := 0
+	for i in count:
+		var spot := _random_spot(3.0)
+		if i < 40:
+			# Line the outside of the arena's long sides.
+			var side := -1.0 if i % 2 == 0 else 1.0
+			var z := arena_center.z + rng.randf_range(-arena_size.y * 0.45, arena_size.y * 0.45)
+			var x := arena_center.x + side * (arena_size.x * 0.5 + rng.randf_range(2.5, 4.0))
+			spot = Vector3(x, height_at(x, z), z)
+		var green := Color(0.2, 0.42, 0.14).lerp(Color(0.36, 0.55, 0.18), rng.randf())
+		for c in 3:
+			var r := rng.randf_range(0.5, 0.9)
+			var offset := Vector3(rng.randf_range(-0.6, 0.6), r * 0.6, rng.randf_range(-0.6, 0.6))
+			bushes.set_instance_transform(placed, Transform3D(Basis().scaled(Vector3(r, r * 0.8, r)), spot + offset))
+			bushes.set_instance_color(placed, green)
+			placed += 1
+	bushes.visible_instance_count = placed
+
+
+## Rose beds on both sides of the arena entrance, like a show yard.
+func _build_flower_beds() -> void:
+	var gate_z := arena_center.z + arena_size.y * 0.5 + 2.5
+	var beds := [Vector3(-11, 0, gate_z), Vector3(11, 0, gate_z)]
+	var leaves := _multimesh(_sphere(1.0, 8, 5), 2 * 14, _vertex_color_material(0.8), "RoseLeaves")
+	var roses := _multimesh(_sphere(0.12, 6, 4), 2 * 14 * 6, _vertex_color_material(0.5), "Roses")
+	var rose_colors := [Color(0.85, 0.08, 0.12), Color(0.95, 0.94, 0.9), Color(0.95, 0.45, 0.55)]
+	var li := 0
+	var ri := 0
+	for bed in beds:
+		for b in 14:
+			var pos: Vector3 = bed + Vector3(rng.randf_range(-6.5, 6.5), 0, rng.randf_range(-1.2, 1.2))
+			var r := rng.randf_range(0.45, 0.65)
+			leaves.set_instance_transform(li, Transform3D(Basis().scaled(Vector3(r, r * 0.9, r)), pos + Vector3(0, r * 0.7, 0)))
+			leaves.set_instance_color(li, Color(0.16, 0.36, 0.12))
+			li += 1
+			var color: Color = rose_colors[rng.randi() % rose_colors.size()]
+			for f in 6:
+				var dir := Vector3(rng.randf_range(-1, 1), rng.randf_range(0.2, 1), rng.randf_range(-1, 1)).normalized()
+				roses.set_instance_transform(ri, Transform3D(Basis(), pos + Vector3(0, r * 0.7, 0) + dir * r * 0.95))
+				roses.set_instance_color(ri, color)
+				ri += 1
 
 
 func _scatter_rocks() -> void:

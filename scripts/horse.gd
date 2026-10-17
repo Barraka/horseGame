@@ -40,6 +40,7 @@ var jumping := false
 var _visual: Node3D
 var _anim: AnimationPlayer
 var _gait_anims: Array = []
+var _clip_gait: Array = []   # Which gait each clip was animated for (sets its playback speed)
 var _jump_anim := ""
 var _placeholder: Dictionary = {}
 var _phase := 0.0
@@ -53,7 +54,9 @@ func _ready() -> void:
 		_build_from_model(load(model_path))
 	else:
 		_build_placeholder()
-	_build_rider()
+		# The blocky rider only suits the placeholder horse; a real rider
+		# model comes with character creation.
+		_build_rider()
 
 
 func set_gait(index: int) -> void:
@@ -142,11 +145,23 @@ func _physics_process(delta: float) -> void:
 func _animate(delta: float) -> void:
 	var gait_speed: float = GAITS[current_gait].speed
 	var ratio := speed / gait_speed if gait_speed > 0.0 else 1.0
+	# Pitch the horse nose-up on take-off and nose-down on landing.
+	var pitch := clampf(velocity.y * 0.05, -0.25, 0.25) if jumping else 0.0
+	_visual.rotation.x = lerpf(_visual.rotation.x, pitch, 1.0 - exp(-8.0 * delta))
 	if _anim:
-		var clip: String = _jump_anim if jumping and _jump_anim else _gait_anims[current_gait]
-		if clip and _anim.current_animation != clip:
+		if jumping and _jump_anim:
+			if _anim.current_animation != _jump_anim:
+				_anim.play(_jump_anim, 0.15)
+			_anim.speed_scale = 1.0
+			return
+		var clip: String = _gait_anims[current_gait]
+		if clip == "":
+			_anim.pause()
+			return
+		if _anim.current_animation != clip or not _anim.is_playing():
 			_anim.play(clip, 0.25)
-		_anim.speed_scale = clampf(ratio, 0.6, 1.4) if current_gait > 0 and not jumping else 1.0
+		var native: float = GAITS[_clip_gait[current_gait]].speed
+		_anim.speed_scale = clampf(absf(speed) / native, 0.5, 2.2) if native > 0.0 else 1.0
 	elif not _placeholder.is_empty():
 		_animate_placeholder(delta, ratio)
 
@@ -169,9 +184,19 @@ func _build_from_model(scene: PackedScene) -> void:
 	var names := _anim.get_animation_list()
 	for keywords in GAIT_CLIPS:
 		_gait_anims.append(_find_clip(names, keywords))
+		_clip_gait.append(_gait_anims.size() - 1)
+	# A gait without its own clip borrows the nearest slower gait's clip,
+	# played faster. With no idle clip the horse simply stands still.
+	for g in range(1, GAITS.size()):
+		if _gait_anims[g] == "":
+			for src in range(g - 1, 0, -1):
+				if _gait_anims[src] != "":
+					_gait_anims[g] = _gait_anims[src]
+					_clip_gait[g] = _clip_gait[src]
+					break
 	_jump_anim = _find_clip(names, JUMP_CLIPS)
 	for clip in _gait_anims:
-		if clip:
+		if clip != "":
 			_anim.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
 	print("Horse model animations: ", names)
 
