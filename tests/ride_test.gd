@@ -26,11 +26,13 @@ func _target() -> Vector2:
 	if heading_home:
 		return Vector2(0, 2)
 	if course.state != course.State.RIDING:
-		return course.start_gate + Vector2(0, -2)
+		var g: Vector3 = course.start.global_position
+		return Vector2(g.x, g.z - 2)
 	if course.next_fence < course.fences.size():
-		var f: Vector3 = course.fences[course.next_fence]
-		return Vector2(f.x, f.y)
-	return course.finish_gate
+		var f: Vector3 = course.fences[course.next_fence].global_position
+		return Vector2(f.x, f.z)
+	var fin: Vector3 = course.finish.global_position
+	return Vector2(fin.x, fin.z)
 
 
 func _process(delta: float) -> bool:

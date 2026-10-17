@@ -20,7 +20,9 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 
 On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons bottom right; drag on the open screen to look around.
 
-**Show jumping:** ride through the green START gate, jump fences 1 to 5 in order, then ride through FINISH. A knocked rail costs 4 faults. Fence positions and heights can be changed on the `Course` node in the Inspector.
+**Show jumping:** ride through the green START gate, jump fences 1 to 5 in order, then ride through FINISH. A knocked rail costs 4 faults.
+
+To change the course, open `scenes/main.tscn` and expand **Course** in the scene tree. Each fence and gate is its own object: select it and drag or rotate it in the 3D view (the green arrow on the ground shows the jumping direction). Change a fence's height in the Inspector. Fences are jumped in the order they're listed; duplicate one with Ctrl+D to add a fence.
 
 ## Adding the horse model
 
@@ -43,7 +45,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scenes/main.tscn` | The game scene: sky and lighting, world, horse, camera, course, HUD |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
 | `scripts/world.gd` | Terrain, arena, trees, rocks, grass and flowers |
-| `scripts/course.gd` | Show jumping course and scoring |
+| `scripts/course.gd`, `scripts/fence.gd`, `scripts/gate.gd` | Show jumping course, scoring, fences and gates |
 | `scripts/follow_camera.gd` | Third-person camera |
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring |
