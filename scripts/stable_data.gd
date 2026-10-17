@@ -31,6 +31,7 @@ signal care_changed(index: int)
 
 var selected := 0
 var care: Array[Dictionary] = []
+var discovered: Array = []   ## Ids of the places found while exploring (world.gd PLACES)
 var _saved_time := 0.0
 
 
@@ -49,6 +50,7 @@ func _ready() -> void:
 			for key in CARE_KEYS:
 				care[i][key] = config.get_value("care", "%s_%d" % [key, i], care[i][key])
 		_saved_time = config.get_value("care", "time", 0.0)
+		discovered = config.get_value("explore", "discovered", [])
 	# Time passes while the game is closed.
 	var now := Time.get_unix_time_from_system()
 	if _saved_time > 0.0:
@@ -74,6 +76,15 @@ func select(index: int) -> void:
 func happiness(index: int) -> float:
 	var c: Dictionary = care[index]
 	return (c.food + c.clean + c.love) / 3.0
+
+
+## Remember a place as found. Returns false if it was found before.
+func discover(id: String) -> bool:
+	if id in discovered:
+		return false
+	discovered.append(id)
+	_save()
+	return true
 
 
 ## Returns false if the horse is too full to eat.
@@ -124,4 +135,5 @@ func _save() -> void:
 		for key in CARE_KEYS:
 			config.set_value("care", "%s_%d" % [key, i], care[i][key])
 	config.set_value("care", "time", _saved_time)
+	config.set_value("explore", "discovered", discovered)
 	config.save(SAVE_PATH)
