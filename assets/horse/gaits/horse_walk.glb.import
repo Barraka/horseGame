@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cd5axw6rcy8xd"
-path="res://.godot/imported/horse.glb-38a485fe1336c9980f6bfe75ba13b56d.scn"
+uid="uid://c1l0mseq0e35l"
+path="res://.godot/imported/horse_walk.glb-c8f17e2a06ceee6ec1b4d1595e8f27e2.scn"
 
 [deps]
 
-source_file="res://assets/horse/horse.glb"
-dest_files=["res://.godot/imported/horse.glb-38a485fe1336c9980f6bfe75ba13b56d.scn"]
+source_file="res://assets/horse/gaits/horse_walk.glb"
+dest_files=["res://.godot/imported/horse_walk.glb-c8f17e2a06ceee6ec1b4d1595e8f27e2.scn"]
 
 [params]
 

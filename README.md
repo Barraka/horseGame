@@ -24,9 +24,9 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 To change the course, open `scenes/main.tscn` and expand **Course** in the scene tree. Each fence and gate is its own object: select it and drag or rotate it in the 3D view (the green arrow on the ground shows the jumping direction). Change a fence's height in the Inspector. Fences are jumped in the order they're listed; duplicate one with Ctrl+D to add a fence.
 
-## Adding the horse model
+## The horse model
 
-Save the model as `assets/horse/horse.glb`. The game picks it up automatically, and its animations are matched by name (idle, walk, trot, canter, gallop, jump). See `assets/horse/README.md` if it looks wrong.
+The horse is made of three downloads of the same horse, one per gait (walk, trot and gallop), in `assets/horse/gaits/`. See `assets/horse/README.md` for how they fit together, and for using a different model.
 
 ## Play on the Android tablet
 
