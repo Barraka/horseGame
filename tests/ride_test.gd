@@ -1,7 +1,8 @@
 extends SceneTree
 ## Smoke test: an autopilot rides the show jumping course and checks the
 ## result: lap 1 jumps every fence (expects a clear round), lap 2 jumps
-## nothing (expects 4 faults per fence). Run with:  godot --headless --path . -s tests/ride_test.gd
+## nothing (expects 4 faults per fence). It also checks that riding left the
+## horse hungrier and muddier. Run with:  godot --headless --path . -s tests/ride_test.gd
 
 var main: Node
 var horse: CharacterBody3D
@@ -12,6 +13,9 @@ var messages: Array[String] = []
 var lap := 1
 var lap1_faults := -1
 var heading_home := false
+var care_before := {}
+var ridden := 0.0
+var last_pos := Vector3.INF
 
 
 func _initialize() -> void:
@@ -39,7 +43,15 @@ func _process(delta: float) -> bool:
 	frames += 1
 	if frames == 2:
 		horse.set_gait(3)
+		# Start from a full, clean horse so the drop is easy to see.
+		var stable := root.get_node("Stable")
+		stable.care[stable.selected].food = 1.0
+		stable.care[stable.selected].clean = 1.0
+		care_before = stable.care[stable.selected].duplicate()
 	var pos := Vector2(horse.global_position.x, horse.global_position.z)
+	if last_pos != Vector3.INF:
+		ridden += Vector2(last_pos.x, last_pos.z).distance_to(pos)
+	last_pos = horse.global_position
 	var target := _target()
 	var to_target := target - pos
 	var forward := Vector2(-sin(horse.rotation.y), -cos(horse.rotation.y))
@@ -64,7 +76,11 @@ func _process(delta: float) -> bool:
 		course.state = course.State.READY
 	elif course.state == course.State.DONE and lap == 2:
 		print("LAP 2 (no jumps): time=%.1f faults=%d" % [course.time, course.faults])
-		var ok: bool = lap1_faults == 0 and course.faults == 4 * course.fences.size()
+		var stable := root.get_node("Stable")
+		var care: Dictionary = stable.care[stable.selected]
+		print("CARE after %.0f m: food %.2f -> %.2f, clean %.2f -> %.2f" % [ridden, care_before.food, care.food, care_before.clean, care.clean])
+		var worn: bool = care.food < care_before.food and care.clean < care_before.clean
+		var ok: bool = lap1_faults == 0 and course.faults == 4 * course.fences.size() and worn
 		print("RESULT: ", "PASS" if ok else "FAIL")
 		quit(0 if ok else 1)
 	elif frames > 60 * 400:
