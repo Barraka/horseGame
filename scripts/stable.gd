@@ -3,6 +3,7 @@ extends Node3D
 
 const Horse := preload("res://scripts/horse.gd")
 const RIDE_SCENE := "res://scenes/main.tscn"
+const RIDER_SCENE := "res://scenes/rider_creator.tscn"
 const CAMERA_POS := Vector3(4.5, 1.8, 5.1)
 const CAMERA_TARGET := Vector3(0, 0.55, 0)   ## Below the horse, so it stands above the controls
 
@@ -18,6 +19,12 @@ var _idle_time := 10.0
 
 
 func _ready() -> void:
+	# The first time the game starts, make a rider before anything else.
+	if not RiderData.saved:
+		set_process(false)
+		set_process_unhandled_input(false)
+		_open_rider_creator.call_deferred()
+		return
 	_index = Stable.selected
 	_build_scene()
 	_build_ui()
@@ -58,6 +65,10 @@ func _show_horse() -> void:
 	_ride_button.text = "Ride %s" % horse.name
 	for i in _dots.get_child_count():
 		_dots.get_child(i).modulate.a = 1.0 if i == _index else 0.35
+
+
+func _open_rider_creator() -> void:
+	get_tree().change_scene_to_file(RIDER_SCENE)
 
 
 func _ride() -> void:
@@ -153,6 +164,7 @@ func _build_scene() -> void:
 	_turntable = Node3D.new()
 	add_child(_turntable)
 	_horse = Horse.new()
+	_horse.with_rider = false   # Just the horse to admire here
 	_turntable.add_child(_horse)
 	_horse.set_physics_process(false)   # Only a model to look at here, not ridden
 	_horse.stand()
@@ -200,6 +212,12 @@ func _build_ui() -> void:
 	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	title.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	title.position.y += 24
+
+	var rider := _button("My Rider", 20, _open_rider_creator, Vector2(150, 52))
+	root.add_child(rider)
+	rider.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	rider.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	rider.position += Vector2(-24, 24)
 
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", _style(Color(0.08, 0.06, 0.12, 0.5)))
