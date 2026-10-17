@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cf34dp24oxgra"
-path="res://.godot/imported/horse_0.jpg-0d1e3fd955f919af74644cb1b09f5a3f.ctex"
+uid="uid://csbi66btmkt8q"
+path="res://.godot/imported/horse_walk_1.png-866311a02920108e5c199d5675ddaa43.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "f22beb28704179f180d82f902f5f51cb"
+"md5": "4905c05c06b77a6e74e81bbd4b469521"
 }
 
 [deps]
 
-source_file="res://assets/horse/horse_0.jpg"
-dest_files=["res://.godot/imported/horse_0.jpg-0d1e3fd955f919af74644cb1b09f5a3f.ctex"]
+source_file="res://assets/horse/gaits/horse_walk_1.png"
+dest_files=["res://.godot/imported/horse_walk_1.png-866311a02920108e5c199d5675ddaa43.ctex"]
 
 [params]
 

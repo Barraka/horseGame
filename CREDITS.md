@@ -4,4 +4,6 @@ Third-party assets used in the game, with their licences.
 
 | Asset | Author | Licence | Link |
 | --- | --- | --- | --- |
-| Horse_walking (horse model and walk animation) | [majidakbarimoganjogi](https://sketchfab.com/majidakbarimoganjogi) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | [Sketchfab](https://sketchfab.com/3d-models/horse-walking-c676020209c44f71bd4b1b83bba5585c) |
+| Horse Walk (horse model and walk animation) | Animation by [Amitesh Nandan](https://sketchfab.com/creatureanimator); model by Tomasz Jurczyk, textures by Didac Ruiz, rig by Carlos Contreras | [CC BY-ND 4.0](http://creativecommons.org/licenses/by-nd/4.0/) | [Sketchfab](https://sketchfab.com/3d-models/horse-walk-93b53ddcec414592842753d1819f3133) |
+| Horse Trot (horse model and trot animation) | Animation by [Amitesh Nandan](https://sketchfab.com/creatureanimator); model by Tomasz Jurczyk, textures by Didac Ruiz, rig by Carlos Contreras | [CC BY-ND 4.0](http://creativecommons.org/licenses/by-nd/4.0/) | [Sketchfab](https://sketchfab.com/3d-models/horse-trot-7e24b8c46d284b519d416035e6445903) |
+| Horse Run (horse model and gallop animation) | Animation by [Amitesh Nandan](https://sketchfab.com/creatureanimator); model by Tomasz Jurczyk, textures by Didac Ruiz, rig by Carlos Contreras | [CC BY-ND 4.0](http://creativecommons.org/licenses/by-nd/4.0/) | [Sketchfab](https://sketchfab.com/3d-models/horse-run-b7421fcc3b9b4065b2b330a3bc7e9a79) |

@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bsueqovxpewe6"
-path="res://.godot/imported/horse_3.jpg-64f5f285ea35a1001bcc2861f96c0db0.ctex"
+uid="uid://chmev3ebta0vv"
+path="res://.godot/imported/horse_trot_0.jpg-7fae0bf790504af700f17aa6951369fb.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "ccf5d49403819b6af16681cf0e28d227"
+"md5": "456223324513abee5cf46f592b069c3d"
 }
 
 [deps]
 
-source_file="res://assets/horse/horse_3.jpg"
-dest_files=["res://.godot/imported/horse_3.jpg-64f5f285ea35a1001bcc2861f96c0db0.ctex"]
+source_file="res://assets/horse/gaits/horse_trot_0.jpg"
+dest_files=["res://.godot/imported/horse_trot_0.jpg-7fae0bf790504af700f17aa6951369fb.ctex"]
 
 [params]
 

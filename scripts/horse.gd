@@ -1,18 +1,19 @@
 @tool
 extends CharacterBody3D
 ## The player's horse: gaits, steering, jumping, and its look.
-## If a horse model exists at model_path it is used (with its animations);
-## otherwise a simple placeholder horse is built.
+## The look comes from the first of these that exists: the gait set in
+## gait_set_dir (one file per gait), a single model at model_path (with its
+## animations), or a simple placeholder horse.
 
 signal gait_changed(target_gait: int)
 signal jump_refused
 
 const GAITS := [
 	{"name": "Halt",   "speed": 0.0,  "accel": 0.0, "turn": 1.8, "jump": 0.0},
-	{"name": "Walk",   "speed": 2.2,  "accel": 2.0, "turn": 1.8, "jump": 0.0},
-	{"name": "Trot",   "speed": 4.5,  "accel": 3.0, "turn": 1.5, "jump": 4.4},
-	{"name": "Canter", "speed": 7.5,  "accel": 3.5, "turn": 1.2, "jump": 5.2},
-	{"name": "Gallop", "speed": 12.0, "accel": 4.0, "turn": 0.8, "jump": 5.6},
+	{"name": "Walk",   "speed": 1.8,  "accel": 2.0, "turn": 1.8, "jump": 0.0},
+	{"name": "Trot",   "speed": 3.6,  "accel": 3.0, "turn": 1.5, "jump": 4.4},
+	{"name": "Canter", "speed": 7.0,  "accel": 3.5, "turn": 1.2, "jump": 5.2},
+	{"name": "Gallop", "speed": 11.0, "accel": 4.0, "turn": 0.8, "jump": 5.6},
 ]
 const GRAVITY := 14.0
 const BRAKE := 4.0
@@ -27,6 +28,26 @@ const GAIT_CLIPS := [
 ]
 const JUMP_CLIPS := ["jump"]
 
+## The gait set: one file per gait, all the same horse, animated with blend
+## shapes rather than a skeleton. The files are used exactly as downloaded
+## (their licence forbids edits), so these numbers, measured from them in the
+## model's own units, line each one up:
+## - yaw turns its head to face forward (-Z);
+## - offset centres its body on the horse;
+## - speed is how fast the hooves move the horse when played at normal speed;
+## - root_motion is how fast the clip itself travels forward, cancelled out
+##   so the horse runs on the spot.
+const GAIT_SET := [
+	{"file": "horse_walk.glb", "yaw": 180.0, "offset": Vector3(0.09, 0.03, -10.66), "speed": 12.1, "root_motion": 0.0},
+	{"file": "horse_trot.glb", "yaw": 180.0, "offset": Vector3(0.01, 0.03, -6.93), "speed": 22.5, "root_motion": 0.0},
+	{"file": "horse_run.glb", "yaw": 90.0, "offset": Vector3(-2.67, -0.66, 0.0), "speed": 65.5, "root_motion": 65.5},
+]
+const GAIT_SET_FOR_GAIT := [0, 0, 1, 2, 2]   ## Halt pauses the walk; canter is a slower gallop
+const GAIT_SET_JUMP := 2                      ## Jumps hold the gallop's moment of flight...
+const GAIT_SET_JUMP_TIME := 0.167             ## ...which is this far into the clip
+const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, in model units
+
+@export_dir var gait_set_dir := "res://assets/horse/gaits"
 @export_file("*.glb", "*.gltf") var model_path := "res://assets/horse/horse.glb"
 @export var model_length := 2.6        ## Nose-to-tail length in metres
 @export var model_yaw_offset := 0.0    ## Degrees; try 180 if the model rides backwards
@@ -44,6 +65,10 @@ var _gait_anims: Array = []
 var _clip_gait: Array = []   # Which gait each clip was animated for (sets its playback speed)
 var _jump_anim := ""
 var _placeholder: Dictionary = {}
+var _set_models: Array[Node3D] = []
+var _set_players: Array[AnimationPlayer] = []
+var _set_scale := 1.0
+var _set_active := -1
 var _phase := 0.0
 
 
@@ -51,7 +76,9 @@ func _ready() -> void:
 	_visual = Node3D.new()
 	_visual.name = "Visual"
 	add_child(_visual)
-	if ResourceLoader.exists(model_path):
+	if ResourceLoader.exists(gait_set_dir.path_join(GAIT_SET[0].file)):
+		_build_gait_set()
+	elif ResourceLoader.exists(model_path):
 		_build_from_model(load(model_path))
 	else:
 		_build_placeholder()
@@ -151,7 +178,9 @@ func _animate(delta: float) -> void:
 	# Pitch the horse nose-up on take-off and nose-down on landing.
 	var pitch := clampf(velocity.y * 0.05, -0.25, 0.25) if jumping else 0.0
 	_visual.rotation.x = lerpf(_visual.rotation.x, pitch, 1.0 - exp(-8.0 * delta))
-	if _anim:
+	if not _set_models.is_empty():
+		_animate_gait_set()
+	elif _anim:
 		if jumping and _jump_anim:
 			if _anim.current_animation != _jump_anim:
 				_anim.play(_jump_anim, 0.15)
@@ -167,6 +196,69 @@ func _animate(delta: float) -> void:
 		_anim.speed_scale = clampf(absf(speed) / native, 0.5, 2.2) if native > 0.0 else 1.0
 	elif not _placeholder.is_empty():
 		_animate_placeholder(delta, ratio)
+
+
+# --- Gait set ---------------------------------------------------------------
+
+func _build_gait_set() -> void:
+	_set_scale = model_length / GAIT_SET_LENGTH
+	for entry in GAIT_SET:
+		var pivot := Node3D.new()
+		pivot.scale = Vector3.ONE * _set_scale
+		pivot.rotation.y = deg_to_rad(entry.yaw)
+		_visual.add_child(pivot)
+		var model := (load(gait_set_dir.path_join(entry.file)) as PackedScene).instantiate() as Node3D
+		model.position = entry.offset
+		pivot.add_child(model)
+		# Each file comes with a ground disc or plane under the horse.
+		for node in model.find_children("*", "MeshInstance3D", true, false):
+			var mi := node as MeshInstance3D
+			if mi.mesh and mi.mesh.get_blend_shape_count() == 0:
+				mi.visible = false
+		var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		var clip := player.get_animation_list()[0]
+		player.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
+		player.assigned_animation = clip
+		pivot.visible = false
+		_set_models.append(model)
+		_set_players.append(player)
+	_show_gait_model(0)
+
+
+func _show_gait_model(index: int) -> void:
+	if index == _set_active:
+		return
+	# Carry the stride phase across so the switch is less of a jump.
+	var phase := 0.0
+	if _set_active >= 0:
+		var old := _set_players[_set_active]
+		phase = old.current_animation_position / old.current_animation_length
+		old.stop()
+		_set_models[_set_active].get_parent().visible = false
+	_set_active = index
+	var player := _set_players[index]
+	_set_models[index].get_parent().visible = true
+	player.play(player.assigned_animation)
+	player.seek(phase * player.current_animation_length, true)
+
+
+func _animate_gait_set() -> void:
+	var index: int = GAIT_SET_JUMP if jumping else GAIT_SET_FOR_GAIT[current_gait]
+	_show_gait_model(index)
+	var player := _set_players[index]
+	var entry: Dictionary = GAIT_SET[index]
+	if jumping:
+		player.seek(GAIT_SET_JUMP_TIME, true)
+		player.pause()
+	elif current_gait == 0:
+		player.pause()
+	else:
+		if not player.is_playing():
+			player.play()
+		var native: float = entry.speed * _set_scale
+		player.speed_scale = clampf(absf(speed) / native, 0.5, 2.2)
+	var model := _set_models[index]
+	model.position.x = entry.offset.x - entry.root_motion * player.current_animation_position
 
 
 # --- Real model -------------------------------------------------------------
