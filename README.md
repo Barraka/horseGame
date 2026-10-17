@@ -24,6 +24,8 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Horse care:** in the stable, the panel on the left shows how full, clean and loved the horse is. **Feed** gives it a carrot, **Pet** gives it a pat, and **Brush** lets you rub the mud off by dragging over the horse (press **Done** to go back to turning it). Riding makes a horse hungry and muddy, and food and love slowly run down while you're away, so come back and look after your horses. The rates are at the top of `scripts/stable_data.gd`.
 
+**Tack:** press **Tack** in the stable to dress the horse you're looking at: saddle pad colour, pad trim, saddle leather, bridle colour and leg wraps (or none). Changes show straight away and each horse keeps its own tack, which it wears when you ride it. The colour lists are at the top of `scripts/tack.gd`.
+
 **Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
 
 **Exploring:** a trail loops out from the arena through the countryside, past six places to find: Sparkle Lake, Flower Valley, the Stone Circle, the Old Windmill, the Hilltop Lookout and the Wild Horse Meadow. Places you haven't found yet have a golden light beam over them, so you can spot them from far away. Ride up to one to find it; the count shows under the course status and is saved. The places and the trail are listed at the top of `scripts/world.gd`.
@@ -54,12 +56,14 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scenes/stable.tscn`, `scripts/stable.gd` | The stable screen where you pick a horse |
 | `scripts/stable_data.gd` | Your horses (names and coat colours), which one you ride, and how well each is looked after |
 | `scripts/horse_care.gd` | Feeding, brushing and petting in the stable |
+| `scripts/tack.gd` | The tack (saddle pad, saddle, stirrups, bridle, reins, leg wraps), built from simple shapes and moved along with the horse; add colours to its lists |
+| `scripts/tack_panel.gd` | The stable's Tack panel |
 | `scenes/rider_creator.tscn`, `scripts/rider_creator.gd` | The screen where you design your rider |
 | `scripts/rider.gd` | The rider: puts the character parts together and poses them; add options to its lists |
 | `scripts/rider_data.gd` | How your rider looks, saved between games |
 | `assets/rider/` | Character parts (bodies, heads, hair, outfits) from Quaternius |
 | `tools/prepare_rider.py` | Copies the character parts out of the Quaternius downloads into `assets/rider/` |
-| `tools/saddle_track.py` | Measures where the saddle sits on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
+| `tools/saddle_track.py` | Measures where the saddle, bridle and leg wraps sit on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
 | `shaders/coat.gdshader` | Recolours the horse's coat and adds mud when it's dirty |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
 | `scripts/world.gd` | Terrain, arena, trail, lake shape, trees, rocks, grass and flowers |
@@ -69,6 +73,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
 | `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
+| `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd` and `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places).
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places) and `godot --headless --path . -s tests/tack_test.gd`.
