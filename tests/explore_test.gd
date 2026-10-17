@@ -6,6 +6,7 @@ extends SceneTree
 var main: Node
 var frames := 0
 var index := 0
+var coins_before := 0
 
 
 func _initialize() -> void:
@@ -20,6 +21,7 @@ func _process(_delta: float) -> bool:
 	var horse: Node3D = main.get_node("Horse")
 	if frames == 2:
 		stable.discovered.clear()
+		coins_before = stable.coins
 	if frames < 3:
 		return false
 	# Move to the next place every 30 frames, then check.
@@ -28,7 +30,10 @@ func _process(_delta: float) -> bool:
 			var id: String = world.PLACES[index - 1].id
 			print("%s found: %s" % [id, id in stable.discovered])
 		if index == world.PLACES.size():
-			var ok: bool = stable.discovered.size() == world.PLACES.size()
+			var earned: int = stable.coins - coins_before
+			print("coins earned: %d" % earned)
+			var ok: bool = stable.discovered.size() == world.PLACES.size() and earned == stable.PLACE_COINS * world.PLACES.size()
+			stable.coins = coins_before
 			print("RESULT: ", "PASS" if ok else "FAIL")
 			stable.discovered.clear()
 			stable.select(stable.selected)   # Save the cleared list again

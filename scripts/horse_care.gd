@@ -13,6 +13,7 @@ var _camera: Camera3D
 var _index := 0
 var _bars := {}           ## Care key -> ProgressBar
 var _mood: Label
+var _panel: PanelContainer
 var _toast: Label
 var _brush_button: Button
 var _brush: Node3D
@@ -35,6 +36,13 @@ func show_horse(index: int) -> void:
 	_index = index
 	_set_brushing(false)
 	_refresh()
+
+
+## Hide the care panel (while the shop is open) or bring it back.
+func set_panel_visible(on: bool) -> void:
+	_panel.visible = on
+	if not on:
+		_set_brushing(false)
 
 
 func _process(delta: float) -> void:
@@ -285,6 +293,7 @@ func _say(text: String) -> void:
 
 func _build_ui(root: Control) -> void:
 	var panel := PanelContainer.new()
+	_panel = panel
 	panel.add_theme_stylebox_override("panel", _style(Color(0.08, 0.06, 0.12, 0.5)))
 	root.add_child(panel)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)

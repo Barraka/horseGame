@@ -26,6 +26,8 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Tack:** press **Tack** in the stable to dress the horse you're looking at: saddle pad colour, pad trim, saddle leather, bridle colour and leg wraps (or none). Changes show straight away and each horse keeps its own tack, which it wears when you ride it. The colour lists are at the top of `scripts/tack.gd`.
 
+**Coins and the shop:** riding earns a coin every 50 m, finishing the jumping course earns 15 (40 for a clear round), and finding a new place earns 30. Press **Shop** in the stable to spend them on new horses (buckskin, cremello, dapple grey, two pintos and a spotted appaloosa) and fancy tack colours. Tap anything in the shop to try it on before buying. Prices and rewards are in `scripts/stable_data.gd` and `scripts/tack.gd`.
+
 **Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
 
 **Exploring:** a trail loops out from the arena through the countryside, past six places to find: Sparkle Lake, Flower Valley, the Stone Circle, the Old Windmill, the Hilltop Lookout and the Wild Horse Meadow. Places you haven't found yet have a golden light beam over them, so you can spot them from far away. Ride up to one to find it; the count shows under the course status and is saved. The places and the trail are listed at the top of `scripts/world.gd`.
@@ -58,6 +60,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/horse_care.gd` | Feeding, brushing and petting in the stable |
 | `scripts/tack.gd` | The tack (saddle pad, saddle, stirrups, bridle, reins, leg wraps), built from simple shapes and moved along with the horse; add colours to its lists |
 | `scripts/tack_panel.gd` | The stable's Tack panel |
+| `scripts/shop.gd` | The stable's shop: horses and tack colours to buy with coins |
+| `scripts/coin_badge.gd` | The coin counter on the stable and riding screens |
 | `scenes/rider_creator.tscn`, `scripts/rider_creator.gd` | The screen where you design your rider |
 | `scripts/rider.gd` | The rider: puts the character parts together and poses them; add options to its lists |
 | `scripts/rider_data.gd` | How your rider looks, saved between games |
@@ -74,6 +78,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
+| `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places) and `godot --headless --path . -s tests/tack_test.gd`.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd` and `godot --headless --path . -s tests/shop_test.gd`. The tests put your saved coins and purchases back when they finish.

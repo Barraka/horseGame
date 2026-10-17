@@ -5,6 +5,8 @@ extends Node3D
 const Horse := preload("res://scripts/horse.gd")
 const HorseCare := preload("res://scripts/horse_care.gd")
 const TackPanel := preload("res://scripts/tack_panel.gd")
+const Shop := preload("res://scripts/shop.gd")
+const CoinBadge := preload("res://scripts/coin_badge.gd")
 const RIDE_SCENE := "res://scenes/main.tscn"
 const RIDER_SCENE := "res://scenes/rider_creator.tscn"
 const CAMERA_POS := Vector3(4.5, 1.8, 5.1)
@@ -14,6 +16,8 @@ var _index := 0
 var _horse: Node3D
 var _care: Node3D
 var _tack: Node
+var _shop: Node
+var _picker: PanelContainer
 var _camera: Camera3D
 var _turntable: Node3D
 var _name_label: Label
@@ -61,20 +65,62 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _browse(step: int) -> void:
-	_index = wrapi(_index + step, 0, Stable.HORSES.size())
+	if _shop.is_open():
+		return
+	var owned: Array[int] = Stable.owned_horses()
+	_index = owned[wrapi(owned.find(_index) + step, 0, owned.size())]
 	_show_horse()
 
 
 func _show_horse() -> void:
 	var horse: Dictionary = Stable.HORSES[_index]
-	_horse.set_coat(horse.body, horse.points, horse.strength)
+	_horse.show_coat(horse)
 	_name_label.text = horse.name
 	_coat_label.text = horse.coat
 	_ride_button.text = "Ride %s" % horse.name
+	_horse.set_dirt(1.0 - Stable.care[_index].clean)
 	_care.show_horse(_index)
 	_tack.show_horse(_index)
+	var owned: Array[int] = Stable.owned_horses()
 	for i in _dots.get_child_count():
-		_dots.get_child(i).modulate.a = 1.0 if i == _index else 0.35
+		_dots.get_child(i).visible = i < owned.size()
+		_dots.get_child(i).modulate.a = 1.0 if i < owned.size() and owned[i] == _index else 0.35
+
+
+# --- Trying things on from the shop -------------------------------------------
+
+## Show a horse from the shop on the stand, in its own tack if it has some.
+func preview_horse(index: int) -> void:
+	_horse.show_coat(Stable.HORSES[index])
+	_horse.set_tack(Stable.tack[index] if Stable.owns(index) else {})
+
+
+## Try a tack colour on the horse in the stable, without keeping it.
+func preview_tack(key: String, option: int) -> void:
+	_horse.show_coat(Stable.HORSES[_index])
+	var config: Dictionary = Stable.tack[_index].duplicate()
+	config[key] = option
+	_horse.set_tack(config)
+
+
+## Put a bought tack colour on the horse in the stable for good.
+func keep_tack(key: String, option: int) -> void:
+	var config: Dictionary = Stable.tack[_index].duplicate()
+	config[key] = option
+	Stable.set_tack(_index, config)
+
+
+## A horse just bought: it's the one shown when the shop closes.
+func adopt(index: int) -> void:
+	_index = index
+
+
+func end_preview() -> void:
+	_show_horse()
+
+
+func horse_name() -> String:
+	return Stable.HORSES[_index].name
 
 
 func _open_rider_creator() -> void:
@@ -82,6 +128,8 @@ func _open_rider_creator() -> void:
 
 
 func _ride() -> void:
+	if _shop.is_open():
+		return
 	Stable.select(_index)
 	get_tree().change_scene_to_file(RIDE_SCENE)
 
@@ -223,6 +271,10 @@ func _build_ui() -> void:
 	title.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	title.position.y += 24
 
+	var coins := CoinBadge.new()
+	root.add_child(coins)
+	coins.position = Vector2(24, 28)
+
 	var rider := _button("My Rider", 20, _open_rider_creator, Vector2(150, 52))
 	root.add_child(rider)
 	rider.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
@@ -230,6 +282,7 @@ func _build_ui() -> void:
 	rider.position += Vector2(-24, 24)
 
 	var panel := PanelContainer.new()
+	_picker = panel
 	panel.add_theme_stylebox_override("panel", _style(Color(0.08, 0.06, 0.12, 0.5)))
 	root.add_child(panel)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
@@ -275,6 +328,19 @@ func _build_ui() -> void:
 	_tack = TackPanel.new()
 	add_child(_tack)
 	_tack.setup(_horse, root)
+	_shop = Shop.new()
+	add_child(_shop)
+	_shop.setup(self, root)
+	# One panel on the right at a time; the shop takes the whole stand.
+	_tack.opened.connect(_shop.close)
+	_shop.opened.connect(func():
+		_tack.close()
+		_care.set_panel_visible(false)
+		_picker.visible = false)
+	_shop.closed.connect(func():
+		_care.set_panel_visible(true)
+		_picker.visible = true
+		_show_horse())
 
 
 func _label(text: String, font_size: int) -> Label:

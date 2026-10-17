@@ -3,6 +3,8 @@ extends Node
 ## to choose each horse's saddle pad, trim, saddle, bridle and leg wraps.
 ## Changes show on the horse straight away and are saved for that horse.
 
+signal opened
+
 const Tack := preload("res://scripts/tack.gd")
 ## The rows on screen, in order: config key and label.
 const ROWS := [
@@ -32,7 +34,12 @@ func show_horse(index: int) -> void:
 
 
 func _change(key: String, step: int) -> void:
-	_config[key] = wrapi(_config[key] + step, 0, Tack.OPTIONS[key].size())
+	# Step over colours that are still in the shop.
+	var count: int = Tack.OPTIONS[key].size()
+	for i in count:
+		_config[key] = wrapi(_config[key] + step, 0, count)
+		if Stable.owns_tack(key, _config[key], Tack.OPTIONS):
+			break
 	Stable.set_tack(_index, _config)
 	_horse.set_tack(_config)
 	_refresh()
@@ -40,6 +47,12 @@ func _change(key: String, step: int) -> void:
 
 func _toggle() -> void:
 	_panel.visible = not _panel.visible
+	if _panel.visible:
+		opened.emit()
+
+
+func close() -> void:
+	_panel.visible = false
 
 
 func _refresh() -> void:

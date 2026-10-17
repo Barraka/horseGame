@@ -11,6 +11,11 @@ uniform float strength : hint_range(0.0, 1.0) = 1.0;   // 0 shows the original c
 uniform float gloss : hint_range(0.0, 1.0) = 0.6;
 uniform float dirt : hint_range(0.0, 1.0) = 0.0;       // Mud and dust from riding
 uniform float ground_y = 0.0;                           // World height of the hooves
+// Coat pattern over the body colour: 0 none, 1 pinto patches, 2 leopard
+// spots (pattern_color on white), 3 dapples.
+uniform int pattern = 0;
+uniform vec3 pattern_color : source_color = vec3(0.95, 0.94, 0.92);
+uniform float pattern_seed = 0.0;
 
 const vec3 MUD = vec3(0.3, 0.22, 0.14);
 const vec3 DUST = vec3(0.62, 0.53, 0.42);
@@ -29,6 +34,32 @@ float noise(vec2 p) {
 		mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
+float fbm(vec2 p) {
+	return noise(p) * 0.55 + noise(p * 2.1 + 7.3) * 0.3 + noise(p * 4.7 + 1.7) * 0.15;
+}
+
+// Distance to the nearest of a scattering of points, and that point's
+// own random number.
+vec2 cells(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	float best = 8.0;
+	float id = 0.0;
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 g = vec2(float(x), float(y));
+			float r = hash(i + g + pattern_seed);
+			vec2 o = vec2(r, hash(i + g + 19.1 + pattern_seed));
+			float d = length(g + o - f);
+			if (d < best) {
+				best = d;
+				id = r;
+			}
+		}
+	}
+	return vec2(best, id);
+}
+
 // Brightness of the texture's body and points, measured from the texture.
 const float BODY_LUMA = 0.57;
 const float POINTS_LUMA = 0.21;
@@ -42,7 +73,19 @@ void fragment() {
 	float luma = dot(tex, vec3(0.299, 0.587, 0.114));
 	float t = smoothstep(0.25, 0.45, luma);
 	float detail = clamp(luma / mix(POINTS_LUMA, BODY_LUMA, t), 0.55, 1.5);
-	vec3 coat = mix(points_color, body_color, t) * detail;
+	vec3 body = body_color;
+	if (pattern == 1) {
+		float n = fbm(UV * 3.5 + pattern_seed);
+		body = mix(body, pattern_color, smoothstep(0.5, 0.53, n));
+	} else if (pattern == 2) {
+		vec2 c = cells(UV * 34.0);
+		float spot = 1.0 - smoothstep(0.18 + c.y * 0.17, 0.24 + c.y * 0.17, c.x);
+		body = mix(vec3(0.93, 0.91, 0.87), pattern_color, spot);
+	} else if (pattern == 3) {
+		vec2 c = cells(UV * 26.0);
+		body *= mix(1.25, 0.7, smoothstep(0.35, 0.75, c.x));
+	}
+	vec3 coat = mix(points_color, body, t) * detail;
 	vec3 color = mix(tex, coat, strength);
 	// Splashes of mud up the legs and a dusty film on the body, in patches
 	// that stay put on the coat (they follow its texture, not the world).
