@@ -1,24 +1,54 @@
 @tool
 extends Node3D
-## Builds the meadow: rolling grassy terrain, a sand riding arena,
-## trees, rocks, grass tufts and flowers. Everything is generated from
-## a seed, so the world looks the same every time. It also runs in the
-## editor; reopen the scene to see changes to the settings below.
+## Builds the countryside: rolling grassy terrain, a sand riding arena,
+## a trail looping past a lake and other places to discover, trees, rocks,
+## grass tufts and flowers. Hills rise at the edges to close it in.
+## Everything is generated from a seed, so the world looks the same every
+## time. It also runs in the editor; reopen the scene to see changes to
+## the settings below. The places themselves are built by explore.gd.
 
 @export var world_seed := 7
-@export var size := 240.0              ## Terrain width and depth in metres
+@export var size := 480.0              ## Terrain width and depth in metres
 @export var cell := 2.0                ## Terrain grid spacing in metres
 @export var hill_height := 9.0
 @export var arena_center := Vector3(0, 0, -35)
 @export var arena_size := Vector2(56, 66)   ## Width (x) and length (z)
-@export var tree_count := 160
-@export var rock_count := 60
-@export var grass_count := 4000
-@export var flower_count := 900
+@export var tree_count := 420
+@export var rock_count := 150
+@export var grass_count := 6000
+@export var flower_count := 2400
+
+## Places to find while exploring, as (x, z) positions. "the" goes before
+## the name in messages ("You found the Old Windmill!").
+const PLACES := [
+	{"id": "lake",     "name": "Sparkle Lake",      "pos": Vector2(95, 70)},
+	{"id": "flowers",  "name": "Flower Valley",     "pos": Vector2(20, 168)},
+	{"id": "stones",   "name": "Stone Circle", "the": true,      "pos": Vector2(-72, 152)},
+	{"id": "windmill", "name": "Old Windmill", "the": true,      "pos": Vector2(-128, 40)},
+	{"id": "lookout",  "name": "Hilltop Lookout", "the": true,   "pos": Vector2(-152, -142)},
+	{"id": "wild",     "name": "Wild Horse Meadow", "the": true, "pos": Vector2(128, -118)},
+]
+const LAKE_CENTER := Vector2(95, 70)
+const LAKE_RADIUS := 30.0
+const WATER_LEVEL := 1.0
+const LAKE_SHORE := 1.6        ## Height of the flat ground around the lake
+const HILL_HEIGHT := 14.0      ## Extra height of the lookout's hill
+const EDGE_HEIGHT := 20.0      ## How high the hills at the world's edge rise
+## The trail: a loop from the arena past every place, smoothed into a curve.
+const TRAIL := [
+	Vector2(0, 14), Vector2(30, 28), Vector2(56, 52), Vector2(58, 92), Vector2(42, 135),
+	Vector2(22, 155), Vector2(-20, 168), Vector2(-60, 140), Vector2(-98, 98), Vector2(-122, 58),
+	Vector2(-136, 0), Vector2(-148, -62), Vector2(-142, -125), Vector2(-100, -152), Vector2(-40, -132),
+	Vector2(20, -118), Vector2(70, -122), Vector2(114, -104), Vector2(140, -52), Vector2(124, 0),
+	Vector2(78, 16), Vector2(36, 12),
+]
+const TRAIL_WIDTH := 3.0
 
 var noise := FastNoiseLite.new()
 var detail := FastNoiseLite.new()
 var rng := RandomNumberGenerator.new()
+var trail_points := PackedVector2Array()   ## The trail's centre line, a point every metre
+var _trail_mask := PackedFloat32Array()    ## 1 on the trail, fading to 0, on a 1 m grid
 
 
 func _ready() -> void:
@@ -28,6 +58,7 @@ func _ready() -> void:
 	detail.seed = world_seed + 1
 	detail.frequency = 0.08
 	rng.seed = world_seed
+	_build_trail()
 	_build_terrain()
 	_build_arena()
 	_scatter_trees()
@@ -46,7 +77,76 @@ func height_at(x: float, z: float) -> float:
 	var mask := smoothstep(flat_radius, flat_radius + 40.0, to_arena.length())
 	var h := (noise.get_noise_2d(x, z) * 0.5 + 0.5) * hill_height
 	h += detail.get_noise_2d(x, z) * 0.4
-	return h * mask
+	h *= mask
+	# A big hill for the lookout.
+	var lookout: Vector2 = PLACES[4].pos
+	h += HILL_HEIGHT * exp(-Vector2(x, z).distance_squared_to(lookout) / (34.0 * 34.0))
+	# Hills closing in the edges of the world.
+	var edge := maxf(absf(x), absf(z))
+	h += EDGE_HEIGHT * smoothstep(size * 0.5 - 55.0, size * 0.5 - 5.0, edge)
+	# The lake: flat shore, then a shallow bowl the horse can wade into.
+	var d := Vector2(x, z).distance_to(LAKE_CENTER)
+	if d < LAKE_RADIUS + 28.0:
+		h = lerpf(LAKE_SHORE, h, smoothstep(LAKE_RADIUS + 4.0, LAKE_RADIUS + 28.0, d))
+		if d < LAKE_RADIUS + 4.0:
+			var bowl := LAKE_SHORE - 1.5 * (1.0 - smoothstep(LAKE_RADIUS * 0.3, LAKE_RADIUS + 4.0, d))
+			h = minf(h, bowl)
+	return h
+
+
+## How much a point is on the trail: 1 in the middle, 0 off it.
+func trail_at(x: float, z: float) -> float:
+	var cells := int(size)
+	var xi := int(x + size * 0.5)
+	var zi := int(z + size * 0.5)
+	if xi < 0 or zi < 0 or xi >= cells or zi >= cells or _trail_mask.is_empty():
+		return 0.0
+	return _trail_mask[zi * cells + xi]
+
+
+func is_in_lake(x: float, z: float, margin := 0.0) -> bool:
+	return Vector2(x, z).distance_to(LAKE_CENTER) < LAKE_RADIUS + margin
+
+
+## Somewhere trees and rocks should stay away from.
+func is_kept_clear(x: float, z: float, margin: float) -> bool:
+	if is_in_arena(x, z, margin) or is_in_lake(x, z, margin + 4.0) or trail_at(x, z) > 0.0:
+		return true
+	for place in PLACES:
+		if Vector2(x, z).distance_to(place.pos) < 16.0 + margin:
+			return true
+	return false
+
+
+## Smooth the trail's corners (Catmull-Rom) and paint it into a grid.
+func _build_trail() -> void:
+	trail_points.clear()
+	var n := TRAIL.size()
+	for i in n:
+		var p0: Vector2 = TRAIL[(i - 1 + n) % n]
+		var p1: Vector2 = TRAIL[i]
+		var p2: Vector2 = TRAIL[(i + 1) % n]
+		var p3: Vector2 = TRAIL[(i + 2) % n]
+		var steps := int(p1.distance_to(p2))
+		for step in steps:
+			var t := float(step) / steps
+			trail_points.append(0.5 * ((2.0 * p1) + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t * t * t))
+	var cells := int(size)
+	_trail_mask = PackedFloat32Array()
+	_trail_mask.resize(cells * cells)
+	var reach := int(ceil(TRAIL_WIDTH))
+	for point in trail_points:
+		var cx := int(point.x + size * 0.5)
+		var cz := int(point.y + size * 0.5)
+		for dz in range(-reach, reach + 1):
+			for dx in range(-reach, reach + 1):
+				var xi := cx + dx
+				var zi := cz + dz
+				if xi < 0 or zi < 0 or xi >= cells or zi >= cells:
+					continue
+				var d := Vector2(xi - size * 0.5 + 0.5, zi - size * 0.5 + 0.5).distance_to(point)
+				var v := 1.0 - smoothstep(TRAIL_WIDTH * 0.35, TRAIL_WIDTH, d)
+				_trail_mask[zi * cells + xi] = maxf(_trail_mask[zi * cells + xi], v)
 
 
 func is_in_arena(x: float, z: float, margin := 0.0) -> bool:
@@ -65,6 +165,9 @@ func _build_terrain() -> void:
 
 	var grass_dark := Color(0.2, 0.44, 0.12)
 	var grass_light := Color(0.47, 0.66, 0.2)
+	var trail_color := Color(0.56, 0.44, 0.3)
+	var trail_light := Color(0.7, 0.58, 0.42)
+	var lake_bed := Color(0.42, 0.4, 0.3)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for zi in cells + 1:
@@ -72,7 +175,11 @@ func _build_terrain() -> void:
 			var x := xi * cell - half
 			var z := zi * cell - half
 			var t := clampf(detail.get_noise_2d(x * 0.5, z * 0.5) * 0.8 + 0.5, 0.0, 1.0)
-			st.set_color(grass_dark.lerp(grass_light, t))
+			var color := grass_dark.lerp(grass_light, t)
+			color = color.lerp(trail_color.lerp(trail_light, t), trail_at(x, z))
+			if is_in_lake(x, z, 2.0):
+				color = color.lerp(lake_bed, 1.0 - smoothstep(LAKE_RADIUS - 2.0, LAKE_RADIUS + 2.0, Vector2(x, z).distance_to(LAKE_CENTER)))
+			st.set_color(color)
 			st.set_uv(Vector2(xi, zi))
 			st.add_vertex(Vector3(x, heights[zi * (cells + 1) + xi], z))
 	for zi in cells:
@@ -122,6 +229,18 @@ func _build_terrain() -> void:
 	body.name = "TerrainBody"
 	body.add_child(collision)
 	add_child(body)
+
+	# Invisible walls on the hills at the edge, so the horse stays in the world.
+	for side in 4:
+		var wall := StaticBody3D.new()
+		var wall_shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(size, 60.0, 2.0)
+		wall_shape.shape = box
+		wall.add_child(wall_shape)
+		wall.rotation.y = side * PI * 0.5
+		wall.position = Vector3(0, 20.0, size * 0.5 - 20.0).rotated(Vector3.UP, side * PI * 0.5)
+		add_child(wall)
 
 
 func _build_arena() -> void:
@@ -204,10 +323,10 @@ func _random_spot(margin: float) -> Vector3:
 	for attempt in 30:
 		var x := rng.randf_range(-half, half)
 		var z := rng.randf_range(-half, half)
-		if is_in_arena(x, z, margin) or Vector2(x, z).length() < margin + 4.0:
+		if is_kept_clear(x, z, margin) or Vector2(x, z).length() < margin + 4.0:
 			continue
 		return Vector3(x, height_at(x, z), z)
-	return Vector3(half, height_at(half, half), half)
+	return Vector3(half, height_at(half, half), half)   # Hidden in the edge hills
 
 
 func _multimesh(mesh: Mesh, count: int, mat: Material, node_name: String) -> MultiMesh:
@@ -368,10 +487,18 @@ func _scatter_grass() -> void:
 	tufts.visible_instance_count = 0
 	var placed := 0
 	for i in grass_count:
-		var half := 70.0
-		var x := rng.randf_range(-half, half)
-		var z := rng.randf_range(-half, half) + arena_center.z * 0.5
-		if is_in_arena(x, z, 1.0):
+		var x: float
+		var z: float
+		if i < 4000:
+			var half := 70.0
+			x = rng.randf_range(-half, half)
+			z = rng.randf_range(-half, half) + arena_center.z * 0.5
+		else:
+			# Along the trail, so riding out stays lush.
+			var p := trail_points[rng.randi() % trail_points.size()]
+			x = p.x + rng.randf_range(-9, 9)
+			z = p.y + rng.randf_range(-9, 9)
+		if is_in_arena(x, z, 1.0) or trail_at(x, z) > 0.3 or is_in_lake(x, z, 1.0):
 			continue
 		var s := rng.randf_range(0.7, 1.4)
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.4), s))
@@ -392,9 +519,9 @@ func _scatter_flowers() -> void:
 	flowers.visible_instance_count = 0
 	var placed := 0
 	for i in flower_count:
-		var x := rng.randf_range(-80, 80)
-		var z := rng.randf_range(-80, 80)
-		if is_in_arena(x, z, 1.0):
+		var x := rng.randf_range(-200, 200)
+		var z := rng.randf_range(-200, 200)
+		if is_in_arena(x, z, 1.0) or trail_at(x, z) > 0.3 or is_in_lake(x, z, 1.0):
 			continue
 		flowers.set_instance_transform(placed, Transform3D(Basis(), Vector3(x, height_at(x, z) + 0.25, z)))
 		flowers.set_instance_color(placed, colors[rng.randi() % colors.size()])

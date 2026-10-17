@@ -8,6 +8,7 @@ extends CanvasLayer
 var _horse: Node
 var _gait_buttons: Array[Button] = []
 var _status: Label
+var _explore: Label
 var _toast: Label
 var _toast_tween: Tween
 
@@ -23,6 +24,7 @@ func _ready() -> void:
 
 	_build_gait_bar(root)
 	_status = _panel_label(root, Control.PRESET_TOP_LEFT, Vector2(20, 20), 20)
+	_explore = _panel_label(root, Control.PRESET_TOP_LEFT, Vector2(20, 112), 18)
 	_toast = Label.new()
 	_toast.set_anchors_preset(Control.PRESET_CENTER)
 	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -59,6 +61,11 @@ func _ready() -> void:
 	course.status_changed.connect(func(text): _status.text = text)
 	course.announce.connect(show_message)
 	_on_gait_changed(0)
+
+
+## The explore line under the course status, e.g. "Places found: 2 of 6".
+func set_explore_text(text: String) -> void:
+	_explore.text = text
 
 
 func show_message(text: String) -> void:

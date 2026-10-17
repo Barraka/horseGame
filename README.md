@@ -26,6 +26,8 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
 
+**Exploring:** a trail loops out from the arena through the countryside, past six places to find: Sparkle Lake, Flower Valley, the Stone Circle, the Old Windmill, the Hilltop Lookout and the Wild Horse Meadow. Places you haven't found yet have a golden light beam over them, so you can spot them from far away. Ride up to one to find it; the count shows under the course status and is saved. The places and the trail are listed at the top of `scripts/world.gd`.
+
 **Show jumping:** ride through the green START gate, jump fences 1 to 5 in order, then ride through FINISH. A knocked rail costs 4 faults.
 
 To change the course, open `scenes/main.tscn` and expand **Course** in the scene tree. Each fence and gate is its own object: select it and drag or rotate it in the 3D view (the green arrow on the ground shows the jumping direction). Change a fence's height in the Inspector. Fences are jumped in the order they're listed; duplicate one with Ctrl+D to add a fence.
@@ -60,11 +62,13 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tools/saddle_track.py` | Measures where the saddle sits on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
 | `shaders/coat.gdshader` | Recolours the horse's coat and adds mud when it's dirty |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
-| `scripts/world.gd` | Terrain, arena, trees, rocks, grass and flowers |
+| `scripts/world.gd` | Terrain, arena, trail, lake shape, trees, rocks, grass and flowers |
+| `scripts/explore.gd`, `shaders/water.gdshader` | The places to discover (lake, windmill, stone circle and the rest) and the lake's water |
 | `scripts/course.gd`, `scripts/fence.gd`, `scripts/gate.gd` | Show jumping course, scoring, fences and gates |
 | `scripts/follow_camera.gd` | Third-person camera |
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
+| `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the test with `godot --headless --path . -s tests/ride_test.gd`.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd` and `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places).
