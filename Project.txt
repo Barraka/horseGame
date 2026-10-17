@@ -5,11 +5,9 @@ A mobile horse game inspired by Equestrian The Game (ETG).
 Own, train, breed, and compete with horses across multiple disciplines.
 
 ## Tech Stack
-- **Engine/Renderer**: Babylon.js (3D)
-- **Language**: JavaScript
-- **Mobile Packaging**: Capacitor (iOS/Android app store deployment)
-- **Art Style**: 3D low-poly
-- **Target Platform**: Mobile (iOS & Android), playable on web as well
+- **Engine**: Godot 4.7 (GDScript). Switched from Babylon.js in Oct 2026; the old web version is in legacy-babylon/
+- **Art Style**: Semi-realistic like Star Stable (glossy coats, real proportions, bright world)
+- **Target Platform**: Windows PC and Android tablet
 
 ## Planned Features (inspired by ETG, to be built incrementally)
 1. **Riding & Controls** — Touch-based horse riding with rein-style steering
@@ -51,5 +49,5 @@ Own, train, breed, and compete with horses across multiple disciplines.
 - (more to be defined as we go)
 
 ## Current Status
-- Project setup: not started
-- Defining architecture and game design
+- Riding prototype in Godot: gaits, steering, jumping, show jumping course, touch controls
+- Game design overview: https://claude.ai/code/artifact/cca03783-d1b4-4383-a55b-35d4318587ec

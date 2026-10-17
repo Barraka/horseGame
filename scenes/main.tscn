@@ -1,0 +1,93 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
+[ext_resource type="Script" path="res://scripts/horse.gd" id="2_horse"]
+[ext_resource type="Script" path="res://scripts/follow_camera.gd" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/course.gd" id="4_course"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="5_hud"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_material"]
+sky_top_color = Color(0.22, 0.47, 0.88, 1)
+sky_horizon_color = Color(0.7, 0.83, 0.96, 1)
+sky_curve = 0.12
+ground_bottom_color = Color(0.3, 0.4, 0.25, 1)
+ground_horizon_color = Color(0.78, 0.86, 0.95, 1)
+sun_angle_max = 20.0
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_material")
+
+[sub_resource type="Environment" id="environment"]
+background_mode = 2
+sky = SubResource("sky")
+ambient_light_source = 3
+ambient_light_sky_contribution = 0.8
+reflected_light_source = 2
+tonemap_mode = 3
+tonemap_exposure = 0.95
+tonemap_white = 6.0
+ssao_enabled = true
+ssao_radius = 1.5
+ssao_intensity = 1.6
+glow_enabled = true
+glow_intensity = 0.5
+glow_bloom = 0.08
+fog_enabled = true
+fog_light_color = Color(0.78, 0.85, 0.94, 1)
+fog_sun_scatter = 0.25
+fog_density = 0.0016
+fog_sky_affect = 0.3
+adjustment_enabled = true
+adjustment_saturation = 1.1
+adjustment_contrast = 1.05
+
+[sub_resource type="BoxShape3D" id="horse_shape"]
+size = Vector3(0.9, 1.6, 2.4)
+
+[sub_resource type="SphereShape3D" id="camera_probe"]
+radius = 0.25
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("environment")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766044, -0.413176, 0.492404, 0, 0.766044, 0.642788, -0.642788, -0.492404, 0.586824, 0, 20, 0)
+light_color = Color(1, 0.95, 0.85, 1)
+light_energy = 1.2
+shadow_enabled = true
+directional_shadow_max_distance = 80.0
+
+[node name="World" type="Node3D" parent="."]
+script = ExtResource("1_world")
+
+[node name="Horse" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 6)
+floor_snap_length = 0.5
+script = ExtResource("2_horse")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Horse"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("horse_shape")
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("3_camera")
+target_path = NodePath("../Horse")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig"]
+shape = SubResource("camera_probe")
+spring_length = 7.0
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D"]
+fov = 65.0
+far = 500.0
+
+[node name="Course" type="Node3D" parent="."]
+script = ExtResource("4_course")
+horse_path = NodePath("../Horse")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("5_hud")
+horse_path = NodePath("../Horse")
+course_path = NodePath("../Course")
