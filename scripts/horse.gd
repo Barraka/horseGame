@@ -62,6 +62,7 @@ const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "f
 @export var with_rider := true   ## Seat the player's rider on the gait set horse
 @export var with_tack := true      ## Saddle and bridle the gait set horse
 @export var tack: Dictionary = {}  ## Tack colours (see tack.gd), when not from the stable
+@export var rider_look: Dictionary = {}   ## How the rider looks (rider.gd), when not the player's
 @export_file("*.glb", "*.gltf") var model_path := "res://assets/horse/horse.glb"
 @export var model_length := 2.6        ## Nose-to-tail length in metres
 @export var model_yaw_offset := 0.0    ## Degrees; try 180 if the model rides backwards
@@ -457,7 +458,10 @@ func _build_saddle() -> void:
 		var rider_data := get_node_or_null("/root/RiderData")
 		_rider = preload("res://scripts/rider.gd").new()
 		_saddle.add_child(_rider)
-		_rider.build(rider_data.config if rider_data and not Engine.is_editor_hint() else {})
+		if not rider_look.is_empty():
+			_rider.build(rider_look)
+		else:
+			_rider.build(rider_data.config if rider_data and not Engine.is_editor_hint() else {})
 		_rider.set_pose("ride")
 		_rider.rotation.y = PI   # The rider model faces +Z, the horse -Z
 		_rider.position.y = SADDLE_HEIGHT - _rider.HIP_HEIGHT

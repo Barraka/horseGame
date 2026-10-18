@@ -1,11 +1,12 @@
 extends Node3D
 ## The stable: browse your horses, see each one up close, look after them,
-## choose their tack, and pick one to ride.
+## choose their tack, see the trophies won, and pick one to ride.
 
 const Horse := preload("res://scripts/horse.gd")
 const HorseCare := preload("res://scripts/horse_care.gd")
 const TackPanel := preload("res://scripts/tack_panel.gd")
 const Shop := preload("res://scripts/shop.gd")
+const TrophyShelf := preload("res://scripts/trophy_shelf.gd")
 const CoinBadge := preload("res://scripts/coin_badge.gd")
 const RIDE_SCENE := "res://scenes/main.tscn"
 const RIDER_SCENE := "res://scenes/rider_creator.tscn"
@@ -17,6 +18,7 @@ var _horse: Node3D
 var _care: Node3D
 var _tack: Node
 var _shop: Node
+var _trophies: Node
 var _picker: PanelContainer
 var _camera: Camera3D
 var _turntable: Node3D
@@ -331,10 +333,19 @@ func _build_ui() -> void:
 	_shop = Shop.new()
 	add_child(_shop)
 	_shop.setup(self, root)
+	_trophies = TrophyShelf.new()
+	add_child(_trophies)
+	_trophies.setup(root)
 	# One panel on the right at a time; the shop takes the whole stand.
-	_tack.opened.connect(_shop.close)
+	_tack.opened.connect(func():
+		_shop.close()
+		_trophies.close())
+	_trophies.opened.connect(func():
+		_shop.close()
+		_tack.close())
 	_shop.opened.connect(func():
 		_tack.close()
+		_trophies.close()
 		_care.set_panel_visible(false)
 		_picker.visible = false)
 	_shop.closed.connect(func():
