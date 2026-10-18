@@ -25,6 +25,9 @@ func _ready() -> void:
 	_build_gait_bar(root)
 	_status = _panel_label(root, Control.PRESET_TOP_LEFT, Vector2(20, 20), 20)
 	_explore = _panel_label(root, Control.PRESET_TOP_LEFT, Vector2(20, 112), 18)
+	var coins := preload("res://scripts/coin_badge.gd").new()
+	root.add_child(coins)
+	coins.position = Vector2(20, 164)
 	_toast = Label.new()
 	_toast.set_anchors_preset(Control.PRESET_CENTER)
 	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH

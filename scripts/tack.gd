@@ -5,14 +5,15 @@ extends Node3D
 ## measured points on its back, head and legs every frame, and each piece is
 ## laid along them.
 
-## Each option the player can change, and the list it picks from.
+## Each option the player can change, and the list it picks from. Options
+## with a price are sold in the stable's shop.
 const PAD_COLORS := [
 	{"name": "White",    "color": Color(0.95, 0.94, 0.9)},
 	{"name": "Navy",     "color": Color(0.12, 0.16, 0.36)},
 	{"name": "Pink",     "color": Color(0.98, 0.55, 0.72)},
-	{"name": "Lilac",    "color": Color(0.72, 0.58, 0.95)},
-	{"name": "Sky blue", "color": Color(0.5, 0.75, 0.98)},
-	{"name": "Mint",     "color": Color(0.55, 0.9, 0.75)},
+	{"name": "Lilac",    "color": Color(0.72, 0.58, 0.95), "price": 40},
+	{"name": "Sky blue", "color": Color(0.5, 0.75, 0.98), "price": 40},
+	{"name": "Mint",     "color": Color(0.55, 0.9, 0.75), "price": 40},
 	{"name": "Red",      "color": Color(0.8, 0.12, 0.15)},
 	{"name": "Black",    "color": Color(0.06, 0.06, 0.07)},
 ]
@@ -21,8 +22,8 @@ const TRIM_COLORS := [
 	{"name": "Silver", "color": Color(0.85, 0.87, 0.9), "metal": true},
 	{"name": "White",  "color": Color(0.97, 0.97, 0.95)},
 	{"name": "Navy",   "color": Color(0.12, 0.16, 0.36)},
-	{"name": "Pink",   "color": Color(1.0, 0.45, 0.68)},
-	{"name": "Purple", "color": Color(0.5, 0.28, 0.78)},
+	{"name": "Pink",   "color": Color(1.0, 0.45, 0.68), "price": 30},
+	{"name": "Purple", "color": Color(0.5, 0.28, 0.78), "price": 30},
 ]
 const LEATHERS := [
 	{"name": "Brown",      "color": Color(0.26, 0.13, 0.06)},
@@ -31,9 +32,9 @@ const LEATHERS := [
 	{"name": "Tan",        "color": Color(0.62, 0.4, 0.2)},
 ]
 const BRIDLE_COLORS := LEATHERS + [
-	{"name": "Pink",   "color": Color(0.92, 0.42, 0.62)},
-	{"name": "Purple", "color": Color(0.42, 0.24, 0.66)},
-	{"name": "Blue",   "color": Color(0.2, 0.36, 0.75)},
+	{"name": "Pink",   "color": Color(0.92, 0.42, 0.62), "price": 50},
+	{"name": "Purple", "color": Color(0.42, 0.24, 0.66), "price": 50},
+	{"name": "Blue",   "color": Color(0.2, 0.36, 0.75), "price": 50},
 ]
 const WRAP_COLORS := [{"name": "No wraps", "color": Color.TRANSPARENT}] + PAD_COLORS
 

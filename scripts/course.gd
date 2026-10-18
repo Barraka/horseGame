@@ -81,10 +81,14 @@ func _physics_process(delta: float) -> void:
 			next_fence += 1
 	elif _crossed(finish, from, to):
 		state = State.DONE
+		var stable := get_node_or_null("/root/Stable")
+		var prize: int = stable.COURSE_COINS + (stable.CLEAR_ROUND_COINS if faults == 0 else 0) if stable else 0
 		if faults == 0:
-			announce.emit("Clear round! %.1f s" % time)
+			announce.emit("Clear round! %.1f s\n+%d coins" % [time, prize])
 		else:
-			announce.emit("Finished in %.1f s with %d faults" % [time, faults])
+			announce.emit("Finished in %.1f s with %d faults\n+%d coins" % [time, faults, prize])
+		if stable:
+			stable.earn(prize)
 	_update_status()
 
 

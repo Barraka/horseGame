@@ -52,6 +52,7 @@ const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "f
 
 @export_dir var gait_set_dir := "res://assets/horse/gaits"
 @export var with_rider := true   ## Seat the player's rider on the gait set horse
+@export var with_tack := true      ## Saddle and bridle the gait set horse
 @export var tack: Dictionary = {}  ## Tack colours (see tack.gd), when not from the stable
 @export_file("*.glb", "*.gltf") var model_path := "res://assets/horse/horse.glb"
 @export var model_length := 2.6        ## Nose-to-tail length in metres
@@ -59,6 +60,9 @@ const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "f
 @export var coat_color := Color(0.5, 0.26, 0.12)   ## Bay
 @export var points_color := Color(0.08, 0.06, 0.05) ## Mane, tail and lower legs
 @export_range(0.0, 1.0) var coat_strength := 1.0    ## 0 keeps the model's own painted coat
+@export_enum("None", "Pinto", "Spotted", "Dappled") var coat_pattern := 0
+@export var pattern_color := Color(0.95, 0.94, 0.92)
+@export var pattern_seed := 0.0                     ## Moves the patches and spots around
 @export_range(0.0, 1.0) var dirt := 0.0             ## Mud from riding; brushing cleans it
 
 var target_gait := 0
@@ -92,10 +96,7 @@ func _ready() -> void:
 	add_child(_visual)
 	var stable := get_node_or_null("/root/Stable")
 	if stable and not Engine.is_editor_hint():
-		var horse: Dictionary = stable.current()
-		coat_color = horse.body
-		points_color = horse.points
-		coat_strength = horse.strength
+		_read_coat(stable.current())
 		dirt = 1.0 - stable.care[stable.selected].clean
 		tack = stable.tack[stable.selected]
 	if ResourceLoader.exists(gait_set_dir.path_join(GAIT_SET[0].file)):
@@ -123,6 +124,24 @@ func set_coat(body: Color, points: Color, strength := 1.0) -> void:
 		_coat_material.set_shader_parameter("body_color", body)
 		_coat_material.set_shader_parameter("points_color", points)
 		_coat_material.set_shader_parameter("strength", strength)
+		_coat_material.set_shader_parameter("pattern", coat_pattern)
+		_coat_material.set_shader_parameter("pattern_color", pattern_color)
+		_coat_material.set_shader_parameter("pattern_seed", pattern_seed)
+
+
+## Give the horse the coat of one of the stable's horses (stable_data.gd HORSES).
+func show_coat(horse: Dictionary) -> void:
+	_read_coat(horse)
+	set_coat(coat_color, points_color, coat_strength)
+
+
+func _read_coat(horse: Dictionary) -> void:
+	coat_color = horse.body
+	points_color = horse.points
+	coat_strength = horse.strength
+	coat_pattern = horse.get("pattern", 0)
+	pattern_color = horse.get("pattern_color", Color(0.95, 0.94, 0.92))
+	pattern_seed = float(hash(horse.name) % 97)
 
 
 ## Dress the horse in tack of these colours (see tack.gd).
@@ -365,6 +384,8 @@ func _animate_gait_set(delta: float) -> void:
 ## with blend shapes), so _follow_back() moves them along with the measured
 ## points on its back, head and legs.
 func _build_saddle() -> void:
+	if not with_tack and not with_rider:
+		return
 	_saddle = Node3D.new()
 	_saddle.name = "Saddle"
 	_visual.add_child(_saddle)

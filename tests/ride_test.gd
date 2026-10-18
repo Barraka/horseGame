@@ -14,6 +14,7 @@ var lap := 1
 var lap1_faults := -1
 var heading_home := false
 var care_before := {}
+var coins_before := 0
 var ridden := 0.0
 var last_pos := Vector3.INF
 
@@ -48,6 +49,7 @@ func _process(delta: float) -> bool:
 		stable.care[stable.selected].food = 1.0
 		stable.care[stable.selected].clean = 1.0
 		care_before = stable.care[stable.selected].duplicate()
+		coins_before = stable.coins
 	var pos := Vector2(horse.global_position.x, horse.global_position.z)
 	if last_pos != Vector3.INF:
 		ridden += Vector2(last_pos.x, last_pos.z).distance_to(pos)
@@ -80,7 +82,13 @@ func _process(delta: float) -> bool:
 		var care: Dictionary = stable.care[stable.selected]
 		print("CARE after %.0f m: food %.2f -> %.2f, clean %.2f -> %.2f" % [ridden, care_before.food, care.food, care_before.clean, care.clean])
 		var worn: bool = care.food < care_before.food and care.clean < care_before.clean
-		var ok: bool = lap1_faults == 0 and course.faults == 4 * course.fences.size() and worn
+		# A clear round (40), a round with faults (15), and a coin per 50 m.
+		var earned: int = stable.coins - coins_before
+		var paid: bool = earned == 55 + int(ridden / 50.0) or earned == 55 + int(ridden / 50.0) - 1
+		print("COINS earned: %d" % earned)
+		stable.coins = coins_before
+		stable.select(stable.selected)   # Save the coins back
+		var ok: bool = lap1_faults == 0 and course.faults == 4 * course.fences.size() and worn and paid
 		print("RESULT: ", "PASS" if ok else "FAIL")
 		quit(0 if ok else 1)
 	elif frames > 60 * 400:

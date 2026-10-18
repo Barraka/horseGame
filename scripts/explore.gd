@@ -56,6 +56,7 @@ func _process(delta: float) -> void:
 func _discover(place: Dictionary) -> void:
 	if not Stable.discover(place.id):
 		return
+	Stable.earn(Stable.PLACE_COINS)
 	var title: String = ("the " if place.get("the", false) else "") + place.name
 	var found := Stable.discovered.size()
 	var total: int = _world.PLACES.size()
@@ -63,7 +64,7 @@ func _discover(place: Dictionary) -> void:
 		if found == total:
 			_hud.show_message("You found %s!\nYou've found every place!" % title)
 		else:
-			_hud.show_message("You found %s!\n%d of %d places" % [title, found, total])
+			_hud.show_message("You found %s!\n%d of %d places   +%d coins" % [title, found, total, Stable.PLACE_COINS])
 	_update_count()
 	if _beams.has(place.id):
 		var beam: Node3D = _beams[place.id]
@@ -390,16 +391,14 @@ func _build_wild_horses(spot: Vector3) -> void:
 		var horse := Horse.new()
 		horse.with_rider = false
 		var coat: Dictionary = Stable.HORSES[coats[i]]
-		horse.coat_color = coat.body
-		horse.points_color = coat.points
-		horse.coat_strength = coat.strength
+		horse.with_tack = false   # Wild horses
 		var p: Vector3 = spot + offsets[i]
 		p.y = _world.height_at(p.x, p.z)
 		horse.position = p
 		horse.rotation.y = i * 2.1 + 0.4
 		add_child(horse)
 		horse.set_physics_process(false)   # Scenery, not ridden
-		horse.set_coat(coat.body, coat.points, coat.strength)
+		horse.show_coat(coat)
 		horse.set_dirt(0.15)
 		horse.stand()
 		_solid(Vector3(1.0, 1.8, 2.4), p + Vector3(0, 0.9, 0), horse.rotation.y)
