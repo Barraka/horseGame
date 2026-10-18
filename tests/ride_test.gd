@@ -15,6 +15,7 @@ var lap1_faults := -1
 var heading_home := false
 var care_before := {}
 var coins_before := 0
+var training_before := {}
 var ridden := 0.0
 var last_pos := Vector3.INF
 
@@ -50,6 +51,7 @@ func _process(delta: float) -> bool:
 		stable.care[stable.selected].clean = 1.0
 		care_before = stable.care[stable.selected].duplicate()
 		coins_before = stable.coins
+		training_before = stable.training[stable.selected].duplicate()
 	var pos := Vector2(horse.global_position.x, horse.global_position.z)
 	if last_pos != Vector3.INF:
 		ridden += Vector2(last_pos.x, last_pos.z).distance_to(pos)
@@ -86,9 +88,16 @@ func _process(delta: float) -> bool:
 		var earned: int = stable.coins - coins_before
 		var paid: bool = earned == 55 + int(ridden / 50.0) or earned == 55 + int(ridden / 50.0) - 1
 		print("COINS earned: %d" % earned)
+		# Cantering trains speed and stamina; lap 1 jumped 5 fences clear.
+		var t: Dictionary = stable.training[stable.selected]
+		var jumps: int = course.fences.size() * (stable.JUMP_POINTS + stable.CLEAR_FENCE_POINTS)
+		var trained: bool = t.speed > training_before.speed + ridden * 0.05 and t.stamina > training_before.stamina + ridden * 0.05 \
+			and t.jumping == training_before.jumping + jumps
+		print("TRAINING: speed +%.0f, stamina +%.0f, jumping +%.0f" % [t.speed - training_before.speed, t.stamina - training_before.stamina, t.jumping - training_before.jumping])
+		stable.training[stable.selected] = training_before
 		stable.coins = coins_before
 		stable.select(stable.selected)   # Save the coins back
-		var ok: bool = lap1_faults == 0 and course.faults == 4 * course.fences.size() and worn and paid
+		var ok: bool = lap1_faults == 0 and course.faults == 4 * course.fences.size() and worn and paid and trained
 		print("RESULT: ", "PASS" if ok else "FAIL")
 		quit(0 if ok else 1)
 	elif frames > 60 * 400:

@@ -9,6 +9,7 @@ const CHOICE := {"pad": 2, "trim": 1, "saddle": 3, "bridle": 4, "wraps": 5}
 var main: Node
 var frames := 0
 var saved_tack: Dictionary
+var saved_training: Dictionary
 var ok := true
 var worst := 0.0
 
@@ -24,6 +25,7 @@ func _process(_delta: float) -> bool:
 	var horse: Node3D = main.get_node("Horse")
 	if frames == 2:
 		saved_tack = stable.tack[stable.selected].duplicate()
+		saved_training = stable.training[stable.selected].duplicate()
 		stable.set_tack(stable.selected, CHOICE)
 		horse.set_tack(stable.tack[stable.selected])
 	if frames < 3:
@@ -46,7 +48,8 @@ func _process(_delta: float) -> bool:
 		print("Furthest noseband from nose: %.2f m" % worst)
 		ok = ok and stored == CHOICE and tack.config == CHOICE and worst < 0.4
 		print("RESULT: ", "PASS" if ok else "FAIL")
-		stable.set_tack(stable.selected, saved_tack)
+		stable.training[stable.selected] = saved_training
+		stable.set_tack(stable.selected, saved_tack)   # Saves both
 		quit(0 if ok else 1)
 		return true
 	return false
