@@ -73,6 +73,7 @@ var _items := {}      ## Quest id -> Array of item nodes (null once picked up)
 var _talking := ""    ## Who the dialog is open for
 var _waved_off := {}  ## People told "Not now", until the rider rides away
 var _last_pos: Vector3
+var busy := false     ## During a competition: nobody stops the rider to chat
 var _time := 0.0
 
 var _dialog: PanelContainer
@@ -146,7 +147,7 @@ func _process(delta: float) -> void:
 		if d < nearest_d:
 			nearest = id
 			nearest_d = d
-	if nearest_d < TALK_DISTANCE and not _waved_off.has(nearest):
+	if nearest_d < TALK_DISTANCE and not _waved_off.has(nearest) and not busy:
 		if _talking != nearest:
 			_talk(nearest)
 	elif _talking != "" and (nearest != _talking or nearest_d > TALK_DISTANCE + 2.0):

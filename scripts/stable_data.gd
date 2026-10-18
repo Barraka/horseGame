@@ -66,6 +66,7 @@ var discovered: Array = []   ## Ids of the places found while exploring (world.g
 var coins := START_COINS
 var bought: Array = []        ## Names of horses bought in the shop
 var bought_tack: Array = []   ## Tack options bought in the shop, as "key:index"
+var results := {}             ## Competition "event:cup" -> best place, 1 to 4 (competitions.gd)
 var quests := {}              ## Quest id -> {"state": "active"/"ready"/"done", "progress": ...} (quests.gd)
 var _coin_metres := 0.0
 var _saved_time := 0.0
@@ -96,6 +97,7 @@ func _ready() -> void:
 		bought = config.get_value("shop", "horses", [])
 		bought_tack = config.get_value("shop", "tack", [])
 		quests = config.get_value("quests", "quests", {})
+		results = config.get_value("competitions", "results", {})
 		if not owns(selected):
 			selected = 0
 		# Tack already chosen before the shop opened stays the player's.
@@ -224,6 +226,26 @@ func train(index: int, skill: String, points: float, save := true) -> void:
 		_save()
 
 
+## The best place ever won in a competition cup (0 if never entered).
+func best_place(event: String, cup: int) -> int:
+	return results.get("%s:%d" % [event, cup], 0)
+
+
+## A cup can be entered once the one before it has been won.
+func cup_open(event: String, cup: int) -> bool:
+	return cup == 0 or best_place(event, cup - 1) == 1
+
+
+## Remember a competition result. Returns true if it's the first win of
+## that cup (a new trophy).
+func record_result(event: String, cup: int, place: int) -> bool:
+	var best := best_place(event, cup)
+	if best == 0 or place < best:
+		results["%s:%d" % [event, cup]] = place
+	_save()
+	return place == 1 and best != 1
+
+
 ## Remember a place as found. Returns false if it was found before.
 func discover(id: String) -> bool:
 	if id in discovered:
@@ -297,4 +319,5 @@ func _save() -> void:
 	config.set_value("shop", "horses", bought)
 	config.set_value("shop", "tack", bought_tack)
 	config.set_value("quests", "quests", quests)
+	config.set_value("competitions", "results", results)
 	config.save(SAVE_PATH)
