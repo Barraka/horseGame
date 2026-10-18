@@ -51,6 +51,7 @@ var discovered: Array = []   ## Ids of the places found while exploring (world.g
 var coins := START_COINS
 var bought: Array = []        ## Names of horses bought in the shop
 var bought_tack: Array = []   ## Tack options bought in the shop, as "key:index"
+var quests := {}              ## Quest id -> {"state": "active"/"ready"/"done", "progress": ...} (quests.gd)
 var _coin_metres := 0.0
 var _saved_time := 0.0
 
@@ -76,6 +77,7 @@ func _ready() -> void:
 		coins = config.get_value("shop", "coins", START_COINS)
 		bought = config.get_value("shop", "horses", [])
 		bought_tack = config.get_value("shop", "tack", [])
+		quests = config.get_value("quests", "quests", {})
 		if not owns(selected):
 			selected = 0
 		# Tack already chosen before the shop opened stays the player's.
@@ -163,6 +165,17 @@ func set_tack(index: int, config: Dictionary) -> void:
 	_save()
 
 
+func quest_state(id: String) -> String:
+	return quests[id].state if quests.has(id) else ""
+
+
+## Start, move on or finish a quest. Progress is whatever the quest counts
+## (things collected, metres galloped).
+func set_quest(id: String, state: String, progress: Variant = null) -> void:
+	quests[id] = {"state": state, "progress": progress}
+	_save()
+
+
 ## Remember a place as found. Returns false if it was found before.
 func discover(id: String) -> bool:
 	if id in discovered:
@@ -232,4 +245,5 @@ func _save() -> void:
 	config.set_value("shop", "coins", coins)
 	config.set_value("shop", "horses", bought)
 	config.set_value("shop", "tack", bought_tack)
+	config.set_value("quests", "quests", quests)
 	config.save(SAVE_PATH)
