@@ -1,7 +1,8 @@
 extends Node3D
 ## Looking after a horse in the stable: feed it a carrot, brush the mud off
 ## and give it a pat. Shows how full, clean and loved the horse is, using
-## the care levels kept by the Stable autoload. Added by stable.gd.
+## the care levels kept by the Stable autoload, and how well trained it is
+## in speed, jumping and stamina. Added by stable.gd.
 
 const CLEAN_PER_PIXEL := 0.0009   ## How much a brush stroke cleans per pixel dragged
 const PET_COOLDOWN := 0.6
@@ -13,6 +14,7 @@ var _camera: Camera3D
 var _index := 0
 var _bars := {}           ## Care key -> ProgressBar
 var _mood: Label
+var _skills := {}         ## Skill -> [level Label, ProgressBar to the next level]
 var _panel: PanelContainer
 var _toast: Label
 var _brush_button: Button
@@ -271,6 +273,10 @@ func _refresh() -> void:
 	var care: Dictionary = Stable.care[_index]
 	for key in _bars:
 		_bars[key].value = care[key] * 100.0
+	for skill in _skills:
+		var level: int = Stable.skill_level(_index, skill)
+		_skills[skill][0].text = "Lv %d" % level
+		_skills[skill][1].value = Stable.skill_progress(_index, skill) * 100.0
 	var horse_name: String = Stable.HORSES[_index].name
 	var happy: float = Stable.happiness(_index)
 	if care.food < 0.25:
@@ -307,27 +313,7 @@ func _build_ui(root: Control) -> void:
 	_mood.custom_minimum_size.x = 280
 	column.add_child(_mood)
 	for row in [["food", "Food", Color(1.0, 0.6, 0.2)], ["clean", "Clean", Color(0.45, 0.75, 1.0)], ["love", "Love", Color(1.0, 0.45, 0.65)]]:
-		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 10)
-		column.add_child(line)
-		var title := _label(row[1], 20)
-		title.custom_minimum_size.x = 70
-		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		line.add_child(title)
-		var bar := ProgressBar.new()
-		bar.show_percentage = false
-		bar.custom_minimum_size = Vector2(180, 20)
-		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var back := _style(Color(0, 0, 0, 0.35))
-		back.content_margin_top = 0
-		back.content_margin_bottom = 0
-		var fill := _style(row[2])
-		fill.content_margin_top = 0
-		fill.content_margin_bottom = 0
-		bar.add_theme_stylebox_override("background", back)
-		bar.add_theme_stylebox_override("fill", fill)
-		line.add_child(bar)
-		_bars[row[0]] = bar
+		_bars[row[0]] = _bar_row(column, row[1], row[2], 180.0)[1]
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
@@ -337,6 +323,20 @@ func _build_ui(root: Control) -> void:
 	buttons.add_child(_brush_button)
 	buttons.add_child(_button("Pet", _pet))
 
+	# Training: a level and a bar towards the next level for each skill.
+	var heading := _label("Training", 20)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	heading.modulate = Color(1, 0.95, 0.85, 0.8)
+	column.add_child(heading)
+	for skill in Stable.SKILLS:
+		var row := _bar_row(column, Stable.SKILL_NAMES[skill], Color(1.0, 0.82, 0.3), 120.0)
+		var level := _label("", 18)
+		level.custom_minimum_size.x = 52
+		level.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row[0].add_child(level)
+		row[0].move_child(level, 1)
+		_skills[skill] = [level, row[1]]
+
 	_toast = _label("", 28)
 	_toast.modulate.a = 0.0
 	_toast.add_theme_stylebox_override("normal", _style(Color(0.08, 0.06, 0.12, 0.55)))
@@ -344,6 +344,31 @@ func _build_ui(root: Control) -> void:
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_toast.position.y += 84
+
+
+## A name and a bar on one line. Returns [the line, the bar].
+func _bar_row(column: VBoxContainer, text: String, color: Color, width: float) -> Array:
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 10)
+	column.add_child(line)
+	var title := _label(text, 20)
+	title.custom_minimum_size.x = 84
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	line.add_child(title)
+	var bar := ProgressBar.new()
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(width, 20)
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var back := _style(Color(0, 0, 0, 0.35))
+	back.content_margin_top = 0
+	back.content_margin_bottom = 0
+	var fill := _style(color)
+	fill.content_margin_top = 0
+	fill.content_margin_bottom = 0
+	bar.add_theme_stylebox_override("background", back)
+	bar.add_theme_stylebox_override("fill", fill)
+	line.add_child(bar)
+	return [line, bar]
 
 
 func _label(text: String, font_size: int) -> Label:

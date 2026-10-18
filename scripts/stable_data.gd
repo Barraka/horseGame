@@ -1,6 +1,6 @@
 extends Node
 ## The player's horses, which one they ride, how well each is looked
-## after, and the coins and shop purchases. Autoloaded as "Stable". Everything is saved, so the game remembers
+## after and trained, and the coins and shop purchases. Autoloaded as "Stable". Everything is saved, so the game remembers
 ## it next time.
 
 const SAVE_PATH := "user://stable.cfg"
@@ -41,16 +41,32 @@ const RIDE_DIRT_PER_KM := 0.4
 const FEED_AMOUNT := 0.3
 const PET_AMOUNT := 0.15
 
+## Training: each horse gets better at speed, jumping and stamina by doing
+## them. Speed comes from cantering and galloping, jumping from jumps (more
+## for clearing a course fence), stamina from riding any distance. Points
+## add up to levels 1 to 10; horse.gd turns levels into a faster canter and
+## gallop, higher jumps and a longer gallop before the horse is out of breath.
+const SKILLS := ["speed", "jumping", "stamina"]
+const SKILL_NAMES := {"speed": "Speed", "jumping": "Jumping", "stamina": "Stamina"}
+const LEVEL_POINTS := [0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700]   ## Points needed for each level
+const SPEED_POINTS_PER_M := [0.0, 0.0, 0.0, 0.1, 0.2]   ## By gait: canter and gallop train speed
+const STAMINA_POINTS_PER_M := 0.1
+const JUMP_POINTS := 10
+const CLEAR_FENCE_POINTS := 10   ## Extra, for a course fence jumped clear
+
 signal care_changed(index: int)
 signal coins_changed(coins: int, gained: int)
+signal level_up(index: int, skill: String, level: int)
 
 var selected := 0
 var care: Array[Dictionary] = []
 var tack: Array[Dictionary] = []   ## Each horse's tack colours (tack.gd OPTIONS)
+var training: Array[Dictionary] = []   ## Each horse's training points, by skill
 var discovered: Array = []   ## Ids of the places found while exploring (world.gd PLACES)
 var coins := START_COINS
 var bought: Array = []        ## Names of horses bought in the shop
 var bought_tack: Array = []   ## Tack options bought in the shop, as "key:index"
+var results := {}             ## Competition "event:cup" -> best place, 1 to 4 (competitions.gd)
 var quests := {}              ## Quest id -> {"state": "active"/"ready"/"done", "progress": ...} (quests.gd)
 var _coin_metres := 0.0
 var _saved_time := 0.0
@@ -62,6 +78,7 @@ func _init() -> void:
 		# something to do straight away.
 		care.append({"food": 0.6, "clean": 0.5, "love": 0.5})
 		tack.append({})
+		training.append({"speed": 0.0, "jumping": 0.0, "stamina": 0.0})
 
 
 func _ready() -> void:
@@ -72,12 +89,15 @@ func _ready() -> void:
 			for key in CARE_KEYS:
 				care[i][key] = config.get_value("care", "%s_%d" % [key, i], care[i][key])
 			tack[i] = config.get_value("tack", str(i), {})
+			for skill in SKILLS:
+				training[i][skill] = config.get_value("training", "%s_%d" % [skill, i], 0.0)
 		_saved_time = config.get_value("care", "time", 0.0)
 		discovered = config.get_value("explore", "discovered", [])
 		coins = config.get_value("shop", "coins", START_COINS)
 		bought = config.get_value("shop", "horses", [])
 		bought_tack = config.get_value("shop", "tack", [])
 		quests = config.get_value("quests", "quests", {})
+		results = config.get_value("competitions", "results", {})
 		if not owns(selected):
 			selected = 0
 		# Tack already chosen before the shop opened stays the player's.
@@ -176,6 +196,56 @@ func set_quest(id: String, state: String, progress: Variant = null) -> void:
 	_save()
 
 
+func skill_level(index: int, skill: String) -> int:
+	var level := 1
+	for i in LEVEL_POINTS.size():
+		if training[index][skill] >= LEVEL_POINTS[i]:
+			level = i + 1
+	return level
+
+
+## How far a horse is from its current level to the next, from 0 to 1
+## (1 at the top level).
+func skill_progress(index: int, skill: String) -> float:
+	var level := skill_level(index, skill)
+	if level >= LEVEL_POINTS.size():
+		return 1.0
+	var from: float = LEVEL_POINTS[level - 1]
+	return (training[index][skill] - from) / (LEVEL_POINTS[level] - from)
+
+
+## Add training points. Saves straight away only if `save` is true (riding
+## saves every few metres anyway).
+func train(index: int, skill: String, points: float, save := true) -> void:
+	var before := skill_level(index, skill)
+	training[index][skill] += points
+	var after := skill_level(index, skill)
+	if after > before:
+		level_up.emit(index, skill, after)
+	if save or after > before:
+		_save()
+
+
+## The best place ever won in a competition cup (0 if never entered).
+func best_place(event: String, cup: int) -> int:
+	return results.get("%s:%d" % [event, cup], 0)
+
+
+## A cup can be entered once the one before it has been won.
+func cup_open(event: String, cup: int) -> bool:
+	return cup == 0 or best_place(event, cup - 1) == 1
+
+
+## Remember a competition result. Returns true if it's the first win of
+## that cup (a new trophy).
+func record_result(event: String, cup: int, place: int) -> bool:
+	var best := best_place(event, cup)
+	if best == 0 or place < best:
+		results["%s:%d" % [event, cup]] = place
+	_save()
+	return place == 1 and best != 1
+
+
 ## Remember a place as found. Returns false if it was found before.
 func discover(id: String) -> bool:
 	if id in discovered:
@@ -240,10 +310,14 @@ func _save() -> void:
 			config.set_value("care", "%s_%d" % [key, i], care[i][key])
 	config.set_value("care", "time", _saved_time)
 	for i in HORSES.size():
+		for skill in SKILLS:
+			config.set_value("training", "%s_%d" % [skill, i], training[i][skill])
+	for i in HORSES.size():
 		config.set_value("tack", str(i), tack[i])
 	config.set_value("explore", "discovered", discovered)
 	config.set_value("shop", "coins", coins)
 	config.set_value("shop", "horses", bought)
 	config.set_value("shop", "tack", bought_tack)
 	config.set_value("quests", "quests", quests)
+	config.set_value("competitions", "results", results)
 	config.save(SAVE_PATH)
