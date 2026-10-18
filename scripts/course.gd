@@ -79,6 +79,9 @@ func _physics_process(delta: float) -> void:
 				announce.emit("Rail down! +4 faults")
 			else:
 				announce.emit("Clear!")
+				var stable := get_node_or_null("/root/Stable")
+				if stable:
+					stable.train(stable.selected, "jumping", stable.CLEAR_FENCE_POINTS)
 			next_fence += 1
 	elif _crossed(finish, from, to):
 		state = State.DONE

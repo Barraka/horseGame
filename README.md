@@ -30,6 +30,8 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Quests:** six people around the countryside need help. Ride up to someone to talk: a gold **!** above their head means they have a quest, and a **?** means your reward is waiting. Lily by the arena wants a clear round, Farmer Tom at the windmill has lost some apples, Rosa at the lake has a letter for Ben at the Wild Horse Meadow (who then wants a gallop), Mia in Flower Valley wants flowers, and Old Sam at the Stone Circle lost a golden horseshoe. Your quests are listed at the top right. People and quests are listed at the top of `scripts/quests.gd`.
 
+**Training:** every horse gets better at what you do with it. Cantering and galloping train **speed** (a faster canter and gallop), jumping trains **jumping** (higher jumps, with extra for clearing a course fence), and riding anywhere trains **stamina** (a longer gallop). Galloping uses up the horse's breath, shown as a blue bar above the gait buttons; when it runs out the horse drops to a canter until it has its breath back. Each skill goes from level 1 to 10, shown under **Training** in the stable. The numbers are at the top of `scripts/stable_data.gd` and `scripts/horse.gd`.
+
 **Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
 
 **Exploring:** a trail loops out from the arena through the countryside, past six places to find: Sparkle Lake, Flower Valley, the Stone Circle, the Old Windmill, the Hilltop Lookout and the Wild Horse Meadow. Places you haven't found yet have a golden light beam over them, so you can spot them from far away. Ride up to one to find it; the count shows under the course status and is saved. The places and the trail are listed at the top of `scripts/world.gd`.
@@ -82,7 +84,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |
+| `tests/training_test.gd` | Automatic test: trains a horse and checks it gallops faster, jumps higher and lasts longer |
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` and `godot --headless --path . -s tests/quest_test.gd`. The tests put your saved coins, purchases and quests back when they finish.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` and `godot --headless --path . -s tests/training_test.gd`. The tests put your saved coins, purchases, quests and training back when they finish.

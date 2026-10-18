@@ -1,6 +1,7 @@
 extends CanvasLayer
 ## On-screen display: gait buttons, course status, messages, and the
-## touch controls (joystick, Faster, Slower, Jump) on touch screens.
+## touch controls (joystick, Faster, Slower, Jump) on touch screens, and a
+## breath bar while the horse is galloping or getting its breath back.
 
 @export var horse_path: NodePath
 @export var course_path: NodePath
@@ -11,6 +12,7 @@ var _status: Label
 var _explore: Label
 var _toast: Label
 var _toast_tween: Tween
+var _breath: ProgressBar
 
 
 func _ready() -> void:
@@ -61,9 +63,17 @@ func _ready() -> void:
 
 	_horse.gait_changed.connect(_on_gait_changed)
 	_horse.jump_refused.connect(func(): show_message("Trot or faster to jump!"))
+	_horse.out_of_breath.connect(func(): show_message("%s is out of breath!\nCanter or trot for a bit" % Stable.current().name))
+	Stable.level_up.connect(func(_i, skill, level): show_message("%s's %s is now level %d!" % [Stable.current().name, Stable.SKILL_NAMES[skill].to_lower(), level]))
 	course.status_changed.connect(func(text): _status.text = text)
 	course.announce.connect(show_message)
 	_on_gait_changed(0)
+
+
+func _process(_delta: float) -> void:
+	_breath.value = _horse.energy * 100.0
+	_breath.visible = _horse.energy < 0.999
+	_breath.modulate = Color(1, 0.55, 0.45) if _horse.energy < _horse.GALLOP_AGAIN else Color.WHITE
 
 
 ## The explore line under the course status, e.g. "Places found: 2 of 6".
@@ -124,6 +134,27 @@ func _build_gait_bar(root: Control) -> void:
 		button.pressed.connect(_horse.set_gait.bind(i))
 		bar.add_child(button)
 		_gait_buttons.append(button)
+
+	# Breath, just above the gait buttons.
+	_breath = ProgressBar.new()
+	_breath.show_percentage = false
+	_breath.custom_minimum_size = Vector2(300, 14)
+	_breath.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var back := _panel_style()
+	var fill := _panel_style(1.0)
+	fill.bg_color = Color(0.55, 0.85, 1.0)
+	for style in [back, fill]:
+		style.set_corner_radius_all(7)
+		style.content_margin_top = 0
+		style.content_margin_bottom = 0
+	_breath.add_theme_stylebox_override("background", back)
+	_breath.add_theme_stylebox_override("fill", fill)
+	root.add_child(_breath)
+	_breath.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_breath.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_breath.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_breath.position.y -= 86
+	_breath.visible = false
 
 
 func _on_gait_changed(gait: int) -> void:

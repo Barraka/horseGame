@@ -7,6 +7,7 @@ extends CharacterBody3D
 
 signal gait_changed(target_gait: int)
 signal jump_refused
+signal out_of_breath   ## Galloped too long: drops to a canter to get its breath back
 
 const GAITS := [
 	{"name": "Halt",   "speed": 0.0,  "accel": 0.0, "turn": 1.8, "jump": 0.0},
@@ -16,6 +17,13 @@ const GAITS := [
 	{"name": "Gallop", "speed": 11.0, "accel": 4.0, "turn": 0.8, "jump": 5.6},
 ]
 const GRAVITY := 14.0
+## Training (Stable skill levels 1 to 10) makes the stable's horse better:
+const SPEED_PER_LEVEL := 0.02          ## Canter and gallop 2% faster per level
+const JUMP_PER_LEVEL := 0.025          ## Jumps 2.5% stronger per level
+const GALLOP_SECONDS := 45.0           ## How long a level 1 horse can gallop...
+const GALLOP_SECONDS_PER_LEVEL := 8.0  ## ...and how much longer for each stamina level
+const REST_SECONDS := 12.0             ## Out of breath to fresh at a trot or slower; a canter takes twice as long
+const GALLOP_AGAIN := 0.25             ## Breath needed to start galloping again
 const BRAKE := 4.0
 
 ## Animation clips are matched by keyword, so most horse packs work as-is.
@@ -69,6 +77,7 @@ var target_gait := 0
 var current_gait := 0
 var speed := 0.0
 var jumping := false
+var energy := 1.0   ## Breath for galloping, from 0 to 1
 
 var _visual: Node3D
 var _anim: AnimationPlayer
@@ -88,6 +97,8 @@ var _tack: Node3D
 var _rest_pitch := 0.0
 var _phase := 0.0
 var _ridden := 0.0   # Metres ridden since the stable was last told
+var _speed_points := 0.0     # Training earned since the stable was last told
+var _stamina_points := 0.0
 
 
 func _ready() -> void:
@@ -112,7 +123,27 @@ func _ready() -> void:
 
 func set_gait(index: int) -> void:
 	target_gait = clampi(index, 0, GAITS.size() - 1)
+	if target_gait == GAITS.size() - 1 and energy < GALLOP_AGAIN:
+		target_gait -= 1
+		out_of_breath.emit()
 	gait_changed.emit(target_gait)
+
+
+## The stable horse's level (1 to 10) in a skill; 1 when not from the stable.
+func level(skill: String) -> int:
+	var stable := get_node_or_null("/root/Stable")
+	return stable.skill_level(stable.selected, skill) if stable else 1
+
+
+## How fast a gait goes for this horse, with its speed training.
+func top_speed(gait: int) -> float:
+	var base: float = GAITS[gait].speed
+	return base * (1.0 + SPEED_PER_LEVEL * (level("speed") - 1)) if gait >= 3 else base
+
+
+## How long this horse can gallop from fresh, in seconds.
+func gallop_seconds() -> float:
+	return GALLOP_SECONDS + GALLOP_SECONDS_PER_LEVEL * (level("stamina") - 1)
 
 
 ## Change the coat colours (on the gait set horse).
@@ -175,7 +206,7 @@ func jump() -> bool:
 	if GAITS[current_gait].jump <= 0.0:
 		jump_refused.emit()
 		return false
-	velocity.y = GAITS[current_gait].jump
+	velocity.y = GAITS[current_gait].jump * (1.0 + JUMP_PER_LEVEL * (level("jumping") - 1))
 	jumping = true
 	return true
 
@@ -215,14 +246,15 @@ func _physics_process(delta: float) -> void:
 		set_gait(1)
 
 	var gait: Dictionary = GAITS[target_gait]
+	var top := top_speed(target_gait)
 	if not is_on_floor():
 		pass  # keep momentum in the air
 	elif back:
 		speed = move_toward(speed, -1.0, BRAKE * 2.0 * delta)
-	elif speed < gait.speed:
-		speed = move_toward(speed, gait.speed, gait.accel * (1.0 if forward else 0.6) * delta)
+	elif speed < top:
+		speed = move_toward(speed, top, gait.accel * (1.0 if forward else 0.6) * delta)
 	else:
-		speed = move_toward(speed, gait.speed, BRAKE * delta)
+		speed = move_toward(speed, top, BRAKE * delta)
 
 	# The gait the horse is actually moving in follows its speed.
 	current_gait = 0
@@ -246,19 +278,47 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	if jumping and is_on_floor() and velocity.y <= 0.0:
 		jumping = false
+		_landed()
+	_breathe(delta)
 	_wear(Vector2(global_position.x - from.x, global_position.z - from.z).length())
 
 	_animate(delta)
 
 
-## Riding makes the horse hungry and muddy, a little at a time.
+## Galloping uses up breath; slower gaits get it back. Out of breath, the
+## horse drops to a canter.
+func _breathe(delta: float) -> void:
+	if current_gait == GAITS.size() - 1 and is_on_floor():
+		energy = maxf(energy - delta / gallop_seconds(), 0.0)
+		if energy <= 0.0 and target_gait == GAITS.size() - 1:
+			set_gait(target_gait - 1)   # Says it is out of breath
+	elif current_gait < GAITS.size() - 1:
+		var rest := REST_SECONDS * (2.0 if current_gait == 3 else 1.0)
+		energy = minf(energy + delta / rest, 1.0)
+
+
+func _landed() -> void:
+	var stable := get_node_or_null("/root/Stable")
+	if stable:
+		stable.train(stable.selected, "jumping", stable.JUMP_POINTS)
+
+
+## Riding makes the horse hungry and muddy, and trains it, a little at a time.
 func _wear(metres: float) -> void:
 	_ridden += metres
 	if _coat_material:
 		_coat_material.set_shader_parameter("ground_y", global_position.y)
 	var stable := get_node_or_null("/root/Stable")
-	if stable and _ridden >= 25.0:
-		stable.ride(stable.selected, _ridden)
+	if not stable:
+		return
+	_speed_points += metres * stable.SPEED_POINTS_PER_M[current_gait]
+	_stamina_points += metres * stable.STAMINA_POINTS_PER_M
+	if _ridden >= 25.0:
+		stable.train(stable.selected, "speed", _speed_points, false)
+		stable.train(stable.selected, "stamina", _stamina_points, false)
+		_speed_points = 0.0
+		_stamina_points = 0.0
+		stable.ride(stable.selected, _ridden)   # Saves
 		_ridden = 0.0
 		set_dirt(1.0 - stable.care[stable.selected].clean)
 
