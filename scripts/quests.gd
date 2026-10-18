@@ -528,7 +528,7 @@ func _build_ui() -> void:
 	root.add_child(tracker_panel)
 	tracker_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	tracker_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	tracker_panel.position += Vector2(-20, 150)
+	tracker_panel.position += Vector2(-20, 176)   # Under the keyboard help
 	_tracker = _label("", 16)
 	_tracker.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	tracker_panel.add_child(_tracker)
