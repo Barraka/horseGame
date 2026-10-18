@@ -9,6 +9,7 @@ extends Node3D
 
 signal status_changed(text: String)
 signal announce(text: String)
+signal finished(time: float, faults: int)
 
 const Fence := preload("res://scripts/fence.gd")
 
@@ -89,6 +90,7 @@ func _physics_process(delta: float) -> void:
 			announce.emit("Finished in %.1f s with %d faults\n+%d coins" % [time, faults, prize])
 		if stable:
 			stable.earn(prize)
+		finished.emit(time, faults)
 	_update_status()
 
 

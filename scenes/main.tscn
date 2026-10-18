@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://scripts/horse.gd" id="2_horse"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/fence.gd" id="7_fence"]
 [ext_resource type="Script" path="res://scripts/gate.gd" id="8_gate"]
 [ext_resource type="Script" path="res://scripts/explore.gd" id="9_explore"]
+[ext_resource type="Script" path="res://scripts/quests.gd" id="10_quests"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.22, 0.47, 0.88, 1)
@@ -146,3 +147,9 @@ script = ExtResource("9_explore")
 world_path = NodePath("../World")
 horse_path = NodePath("../Horse")
 hud_path = NodePath("../HUD")
+
+[node name="Quests" type="Node3D" parent="."]
+script = ExtResource("10_quests")
+world_path = NodePath("../World")
+horse_path = NodePath("../Horse")
+course_path = NodePath("../Course")
