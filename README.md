@@ -13,7 +13,7 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 | Key | Action |
 | --- | --- |
 | U / J or ↑ / ↓ | Ride on / slow down and back up |
-| H / L or ← / → | Steer |
+| H / K or ← / → | Steer |
 | Left click / right click | One gait faster / slower (also Q / E, or 0 to 4 for halt, walk, trot, canter, gallop) |
 | Space | Jump (trot or faster) |
 | Mouse drag, scroll | Look around, zoom |
@@ -90,7 +90,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |
 | `tests/competition_test.gd` | Automatic test: wins and loses show jumping and race cups, and checks prizes and trophies |
-| `tests/controls_test.gd` | Automatic test: U J H L keys, and clicks to change gait |
+| `tests/controls_test.gd` | Automatic test: U J H K keys, and clicks to change gait |
 | `tests/training_test.gd` | Automatic test: trains a horse and checks it gallops faster, jumps higher and lasts longer |
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |

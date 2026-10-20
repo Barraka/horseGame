@@ -1,5 +1,5 @@
 extends SceneTree
-## Checks the riding controls: U J H L (and the arrows) ride and steer, a
+## Checks the riding controls: U J H K (and the arrows) ride and steer, a
 ## left click is one gait faster and a right click one gait slower, while a
 ## drag to look around, or a tap on the tablet's screen, changes nothing.
 ## Run with: godot --headless --path . -s tests/controls_test.gd
@@ -44,7 +44,7 @@ func _process(_delta: float) -> bool:
 	_check("U rides on", _has_key("ride_forward", KEY_U) and _has_key("ride_forward", KEY_UP))
 	_check("J slows down", _has_key("ride_back", KEY_J))
 	_check("H steers left", _has_key("steer_left", KEY_H))
-	_check("L steers right", _has_key("steer_right", KEY_L))
+	_check("K steers right", _has_key("steer_right", KEY_K) and not _has_key("steer_right", KEY_L))
 	_check("W A S D are free", not _has_key("ride_forward", KEY_W) and not _has_key("steer_left", KEY_A))
 
 	horse.set_gait(1)
