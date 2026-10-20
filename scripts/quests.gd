@@ -49,7 +49,7 @@ const QUESTS := [
 		"goal": "Take Rosa's letter to Ben at the Wild Horse Meadow",
 		"thanks": "A letter from Rosa? Thank you for riding all this way!"},
 	{"id": "gallop", "giver": "ben", "needs": "letter", "reward": 40, "kind": "gallop",
-		"ask": "Your horse looks fast! Can you gallop 500 metres? Press 4 or E to gallop.",
+		"ask": "Your horse looks fast! Can you gallop 500 metres? Left-click until you're galloping, or press 4.",
 		"goal": "Gallop 500 m",
 		"thanks": "What a gallop! The wild horses were watching you."},
 	{"id": "flowers", "giver": "mia", "reward": 45, "kind": "collect", "item": "flower", "count": 8,
@@ -529,7 +529,7 @@ func _build_ui() -> void:
 	root.add_child(tracker_panel)
 	tracker_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	tracker_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	tracker_panel.position += Vector2(-20, 176)   # Under the keyboard help
+	tracker_panel.position += Vector2(-20, 204)   # Under the keyboard help
 	_tracker = _label("", 16)
 	_tracker.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	tracker_panel.add_child(_tracker)

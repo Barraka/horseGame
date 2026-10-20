@@ -23,6 +23,7 @@ const JUMP_PER_LEVEL := 0.025          ## Jumps 2.5% stronger per level
 const GALLOP_SECONDS := 45.0           ## How long a level 1 horse can gallop...
 const GALLOP_SECONDS_PER_LEVEL := 8.0  ## ...and how much longer for each stamina level
 const REST_SECONDS := 12.0             ## Out of breath to fresh at a trot or slower; a canter takes twice as long
+const CLICK_SLOP := 8.0                ## Pixels a click may move and still count as a click
 const GALLOP_AGAIN := 0.25             ## Breath needed to start galloping again
 const BRAKE := 4.0
 
@@ -98,6 +99,7 @@ var _tack: Node3D
 var _rest_pitch := 0.0
 var _phase := 0.0
 var _ridden := 0.0   # Metres ridden since the stable was last told
+var _click_from := Vector2.INF   # Where the mouse button went down
 var _speed_points := 0.0     # Training earned since the stable was last told
 var _stamina_points := 0.0
 
@@ -219,6 +221,21 @@ func height_above_ground() -> float:
 	query.exclude = [get_rid()]
 	var hit := space.intersect_ray(query)
 	return global_position.y - hit.position.y if hit else 0.0
+
+
+## A left click speeds up one gait and a right click slows down one, on
+## PC. A click that turns into a drag (looking around) doesn't count, nor
+## do taps on the tablet's screen or clicks on buttons.
+func _unhandled_input(event: InputEvent) -> void:
+	var button := event as InputEventMouseButton
+	if button == null or button.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	if button.button_index != MOUSE_BUTTON_LEFT and button.button_index != MOUSE_BUTTON_RIGHT:
+		return
+	if button.pressed:
+		_click_from = button.position
+	elif button.position.distance_to(_click_from) < CLICK_SLOP and is_physics_processing():
+		set_gait(target_gait + (1 if button.button_index == MOUSE_BUTTON_LEFT else -1))
 
 
 func _read_buttons() -> void:
