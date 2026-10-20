@@ -1,6 +1,7 @@
 extends SceneTree
 ## Rides the horse to every place in the world (by moving it there) and
-## checks each one is discovered and counted. Run with:
+## checks each one is discovered and counted, and that grass grew along
+## the way but not in the arena, the lake or the middle of the trail. Run with:
 ## godot --headless --path . -s tests/explore_test.gd
 
 var main: Node
@@ -33,6 +34,7 @@ func _process(_delta: float) -> bool:
 			var earned: int = stable.coins - coins_before
 			print("coins earned: %d" % earned)
 			var ok: bool = stable.discovered.size() == world.PLACES.size() and earned == stable.PLACE_COINS * world.PLACES.size()
+			ok = _grass_ok(world) and ok
 			stable.coins = coins_before
 			print("RESULT: ", "PASS" if ok else "FAIL")
 			stable.discovered.clear()
@@ -46,3 +48,18 @@ func _process(_delta: float) -> bool:
 		horse.global_position = Vector3(near.x, world.height_at(near.x, near.y) + 0.5, near.y)
 		index += 1
 	return frames > 60 * 30
+
+
+func _grass_ok(world: Node3D) -> bool:
+	var squares := world.get_node("Grass").get_children()
+	var tufts := 0
+	var misplaced := 0
+	for square in squares:
+		var mm: MultiMesh = square.multimesh
+		for i in mm.instance_count:
+			var p := mm.get_instance_transform(i).origin
+			tufts += 1
+			if world.is_in_arena(p.x, p.z) or world.is_in_lake(p.x, p.z, -1.0) or world.trail_at(p.x, p.z) > 0.5:
+				misplaced += 1
+	print("grass: %d squares, %d tufts, %d in the wrong place" % [squares.size(), tufts, misplaced])
+	return squares.size() > 100 and tufts > 50000 and misplaced == 0

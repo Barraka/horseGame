@@ -2,7 +2,8 @@
 extends Node3D
 ## Builds the countryside: rolling grassy terrain, a sand riding arena,
 ## a trail looping past a lake and other places to discover, trees, rocks,
-## grass tufts and flowers. Hills rise at the edges to close it in.
+## swaying grass (grass.gd) and drifts of wildflowers. Hills rise at the
+## edges to close it in.
 ## Everything is generated from a seed, so the world looks the same every
 ## time. It also runs in the editor; reopen the scene to see changes to
 ## the settings below. The places themselves are built by explore.gd.
@@ -15,8 +16,7 @@ extends Node3D
 @export var arena_size := Vector2(56, 66)   ## Width (x) and length (z)
 @export var tree_count := 420
 @export var rock_count := 150
-@export var grass_count := 6000
-@export var flower_count := 2400
+@export var flower_count := 20000   ## Tries; most land outside the drifts
 
 ## Places to find while exploring, as (x, z) positions. "the" goes before
 ## the name in messages ("You found the Old Windmill!").
@@ -43,12 +43,18 @@ const TRAIL := [
 	Vector2(78, 16), Vector2(36, 12),
 ]
 const TRAIL_WIDTH := 3.0
+const GRASS_DARK := Color(0.2, 0.44, 0.12)
+const GRASS_LIGHT := Color(0.47, 0.66, 0.2)
+const TRAIL_DARK := Color(0.56, 0.44, 0.3)
+const TRAIL_LIGHT := Color(0.7, 0.58, 0.42)
+const LAKE_BED := Color(0.42, 0.4, 0.3)
 
 var noise := FastNoiseLite.new()
 var detail := FastNoiseLite.new()
 var rng := RandomNumberGenerator.new()
 var trail_points := PackedVector2Array()   ## The trail's centre line, a point every metre
 var _trail_mask := PackedFloat32Array()    ## 1 on the trail, fading to 0, on a 1 m grid
+var _ground_material: ShaderMaterial
 
 
 func _ready() -> void:
@@ -92,6 +98,17 @@ func height_at(x: float, z: float) -> float:
 			var bowl := LAKE_SHORE - 1.5 * (1.0 - smoothstep(LAKE_RADIUS * 0.3, LAKE_RADIUS + 4.0, d))
 			h = minf(h, bowl)
 	return h
+
+
+## The ground's painted colour at a point: grass in two greens, the trail
+## in sandy browns, and the lake bed. The grass blades take it too.
+func ground_color(x: float, z: float) -> Color:
+	var t := clampf(detail.get_noise_2d(x * 0.5, z * 0.5) * 0.8 + 0.5, 0.0, 1.0)
+	var color := GRASS_DARK.lerp(GRASS_LIGHT, t)
+	color = color.lerp(TRAIL_DARK.lerp(TRAIL_LIGHT, t), trail_at(x, z))
+	if is_in_lake(x, z, 2.0):
+		color = color.lerp(LAKE_BED, 1.0 - smoothstep(LAKE_RADIUS - 2.0, LAKE_RADIUS + 2.0, Vector2(x, z).distance_to(LAKE_CENTER)))
+	return color
 
 
 ## How much a point is on the trail: 1 in the middle, 0 off it.
@@ -163,23 +180,13 @@ func _build_terrain() -> void:
 		for xi in cells + 1:
 			heights[zi * (cells + 1) + xi] = height_at(xi * cell - half, zi * cell - half)
 
-	var grass_dark := Color(0.2, 0.44, 0.12)
-	var grass_light := Color(0.47, 0.66, 0.2)
-	var trail_color := Color(0.56, 0.44, 0.3)
-	var trail_light := Color(0.7, 0.58, 0.42)
-	var lake_bed := Color(0.42, 0.4, 0.3)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for zi in cells + 1:
 		for xi in cells + 1:
 			var x := xi * cell - half
 			var z := zi * cell - half
-			var t := clampf(detail.get_noise_2d(x * 0.5, z * 0.5) * 0.8 + 0.5, 0.0, 1.0)
-			var color := grass_dark.lerp(grass_light, t)
-			color = color.lerp(trail_color.lerp(trail_light, t), trail_at(x, z))
-			if is_in_lake(x, z, 2.0):
-				color = color.lerp(lake_bed, 1.0 - smoothstep(LAKE_RADIUS - 2.0, LAKE_RADIUS + 2.0, Vector2(x, z).distance_to(LAKE_CENTER)))
-			st.set_color(color)
+			st.set_color(ground_color(x, z))
 			st.set_uv(Vector2(xi, zi))
 			st.add_vertex(Vector3(x, heights[zi * (cells + 1) + xi], z))
 	for zi in cells:
@@ -193,24 +200,13 @@ func _build_terrain() -> void:
 			st.add_index(i + cells + 1)
 	st.generate_normals()
 
-	# A fine mottled pattern over the grass colours so the ground doesn't look flat.
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(0.72, 0.78, 0.68))
-	ramp.set_color(1, Color(1.05, 1.05, 0.98))
-	var grain := FastNoiseLite.new()
-	grain.frequency = 0.06
-	grain.fractal_octaves = 4
-	var grain_texture := NoiseTexture2D.new()
-	grain_texture.noise = grain
-	grain_texture.color_ramp = ramp
-	grain_texture.seamless = true
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.albedo_texture = grain_texture
-	mat.uv1_triplanar = true
-	mat.uv1_world_triplanar = true
-	mat.uv1_scale = Vector3(0.12, 0.12, 0.12)
-	mat.roughness = 0.95
+	# Soft painted detail on top of the colours: see terrain.gdshader.
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://shaders/terrain.gdshader")
+	mat.set_shader_parameter("patches", _noise_texture(0.012, 3, 256, false))
+	mat.set_shader_parameter("grain", _noise_texture(0.03, 4, 256, false))
+	mat.set_shader_parameter("bumps", _noise_texture(0.03, 4, 256, true))
+	_ground_material = mat
 
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = "Terrain"
@@ -327,6 +323,22 @@ func _random_spot(margin: float) -> Vector3:
 			continue
 		return Vector3(x, height_at(x, z), z)
 	return Vector3(half, height_at(half, half), half)   # Hidden in the edge hills
+
+
+func _noise_texture(frequency: float, octaves: int, texture_size: int, normal_map: bool) -> NoiseTexture2D:
+	var n := FastNoiseLite.new()
+	n.seed = world_seed
+	n.frequency = frequency
+	n.fractal_octaves = octaves
+	var texture := NoiseTexture2D.new()
+	texture.noise = n
+	texture.width = texture_size
+	texture.height = texture_size
+	texture.seamless = true
+	texture.as_normal_map = normal_map
+	texture.bump_strength = 4.0
+	texture.generate_mipmaps = true
+	return texture
 
 
 func _multimesh(mesh: Mesh, count: int, mat: Material, node_name: String) -> MultiMesh:
@@ -470,60 +482,98 @@ func _scatter_rocks() -> void:
 
 
 func _scatter_grass() -> void:
-	# A tuft is three thin crossed blades, cheap enough to draw thousands.
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in 3:
-		var a := i * TAU / 3.0
-		var side := Vector3(cos(a), 0, sin(a)) * 0.12
-		var lean := Vector3(-sin(a), 0, cos(a)) * 0.08
-		st.add_vertex(-side)
-		st.add_vertex(side)
-		st.add_vertex(lean + Vector3(0, 0.5, 0))
-	st.generate_normals()
-	var mat := _vertex_color_material()
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var tufts := _multimesh(st.commit(), grass_count, mat, "GrassTufts")
-	tufts.visible_instance_count = 0
-	var placed := 0
-	for i in grass_count:
-		var x: float
-		var z: float
-		if i < 4000:
-			var half := 70.0
-			x = rng.randf_range(-half, half)
-			z = rng.randf_range(-half, half) + arena_center.z * 0.5
-		else:
-			# Along the trail, so riding out stays lush.
-			var p := trail_points[rng.randi() % trail_points.size()]
-			x = p.x + rng.randf_range(-9, 9)
-			z = p.y + rng.randf_range(-9, 9)
-		if is_in_arena(x, z, 1.0) or trail_at(x, z) > 0.3 or is_in_lake(x, z, 1.0):
-			continue
-		var s := rng.randf_range(0.7, 1.4)
-		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.4), s))
-		tufts.set_instance_transform(placed, Transform3D(b, Vector3(x, height_at(x, z), z)))
-		tufts.set_instance_color(placed, Color(0.36, 0.58, 0.2).lerp(Color(0.58, 0.72, 0.3), rng.randf()))
-		placed += 1
-	tufts.visible_instance_count = placed
+	if Engine.is_editor_hint():
+		return   # Grass grows around the camera while playing
+	var grass := Node3D.new()
+	grass.set_script(preload("res://scripts/grass.gd"))
+	grass.name = "Grass"
+	add_child(grass)
+	grass.setup(self, _ground_material)
 
 
+## Wildflowers in drifts: more where the meadow is lush, in groups of one
+## colour. Split into squares so only the ones in view are drawn.
 func _scatter_flowers() -> void:
-	var flower_mesh := SphereMesh.new()
-	flower_mesh.radius = 0.07
-	flower_mesh.height = 0.1
-	flower_mesh.radial_segments = 5
-	flower_mesh.rings = 2
-	var colors := [Color(0.98, 0.98, 0.95), Color(0.98, 0.85, 0.2), Color(0.85, 0.35, 0.6), Color(0.55, 0.5, 0.95)]
-	var flowers := _multimesh(flower_mesh, flower_count, _vertex_color_material(0.6), "Flowers")
-	flowers.visible_instance_count = 0
-	var placed := 0
+	var region := 80.0
+	var colors := [Color(0.98, 0.98, 0.95), Color(1.0, 0.86, 0.25), Color(0.92, 0.42, 0.66), Color(0.62, 0.55, 1.0), Color(1.0, 0.55, 0.35)]
+	var drifts := FastNoiseLite.new()
+	drifts.seed = world_seed + 9
+	drifts.frequency = 0.025
+	var mesh := _flower_mesh()
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://shaders/flower.gdshader")
+	var groups := {}   # Vector2i region -> [transforms, colours]
 	for i in flower_count:
 		var x := rng.randf_range(-200, 200)
 		var z := rng.randf_range(-200, 200)
-		if is_in_arena(x, z, 1.0) or trail_at(x, z) > 0.3 or is_in_lake(x, z, 1.0):
+		var drift := drifts.get_noise_2d(x, z)
+		if drift < 0.05 and rng.randf() > 0.15:
+			continue   # Mostly in drifts, a few on their own
+		if is_in_arena(x, z, 1.0) or trail_at(x, z) > 0.2 or is_in_lake(x, z, 1.0):
 			continue
-		flowers.set_instance_transform(placed, Transform3D(Basis(), Vector3(x, height_at(x, z) + 0.25, z)))
-		flowers.set_instance_color(placed, colors[rng.randi() % colors.size()])
-		placed += 1
-	flowers.visible_instance_count = placed
+		var key := Vector2i(floori(x / region), floori(z / region))
+		if not groups.has(key):
+			groups[key] = [[], []]
+		var s := rng.randf_range(1.2, 1.8)
+		groups[key][0].append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3(x, height_at(x, z) - 0.02, z)))
+		# Neighbouring flowers share a colour, picked by where they grow.
+		var pick := int(absf(drifts.get_noise_2d(x * 3.0 + 500.0, z * 3.0)) * 40.0) % colors.size()
+		groups[key][1].append(colors[pick])
+	for key in groups:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = mesh
+		mm.instance_count = groups[key][0].size()
+		for i in mm.instance_count:
+			mm.set_instance_transform(i, groups[key][0][i])
+			mm.set_instance_color(i, groups[key][1][i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Flowers_%d_%d" % [key.x, key.y]
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = 80.0 + region
+		add_child(mmi)
+
+
+## A daisy-like flower: a thin stem with two leaves, five petals around a
+## middle. UV2 marks the parts for flower.gdshader (x: petal, y: middle),
+## which colours them. UV.y is how high up the flower a point is.
+func _flower_mesh() -> Mesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var top := 0.32
+	var head := Vector3(0.03, top, 0)
+	var add := func(at: Vector3, part: Vector2) -> void:
+		st.set_uv(Vector2(0.5, at.y / top))
+		st.set_uv2(part)
+		st.add_vertex(at)
+	# Stem: two crossed thin strips.
+	for side in [Vector3(0.008, 0, 0), Vector3(0, 0, 0.008)]:
+		for v in [-side, side, head + side, -side, head + side, head - side]:
+			add.call(v, Vector2.ZERO)
+	# Leaves.
+	for leaf in [Vector3(0.09, 0.1, 0.02), Vector3(-0.08, 0.14, -0.03)]:
+		var mid := Vector3(0, leaf.y - 0.06, 0)
+		var w := Vector3(0, 0.025, 0)
+		for v in [mid, leaf * Vector3(0.5, 1, 0.5) + w, leaf, mid, leaf, leaf * Vector3(0.5, 1, 0.5) - w]:
+			add.call(v, Vector2.ZERO)
+	# Petals, tilted up a little, and the middle.
+	for p in 5:
+		var a := p * TAU / 5.0
+		var out := Vector3(cos(a), 0.25, sin(a))
+		var across := Vector3(-sin(a), 0, cos(a))
+		var base := head + out * 0.015
+		for v in [base - across * 0.018, base + out * 0.06 + across * 0.022, base + out * 0.075,
+				base - across * 0.018, base + out * 0.075, base + out * 0.06 - across * 0.022,
+				base - across * 0.018, base + across * 0.018, base + out * 0.06 + across * 0.022]:
+			add.call(v, Vector2(1, 0))
+	for p in 5:
+		var a := p * TAU / 5.0
+		var b := (p + 1) * TAU / 5.0
+		add.call(head + Vector3(0, 0.008, 0), Vector2(0, 1))
+		add.call(head + Vector3(cos(b), 0, sin(b)) * 0.02, Vector2(0, 1))
+		add.call(head + Vector3(cos(a), 0, sin(a)) * 0.02, Vector2(0, 1))
+	st.generate_normals()
+	return st.commit()
