@@ -79,7 +79,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tools/saddle_track.py` | Measures where the saddle, bridle and leg wraps sit on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
 | `shaders/coat.gdshader` | Recolours the horse's coat and adds mud when it's dirty |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
-| `scripts/world.gd` | Terrain, arena, trail, lake shape, trees, rocks and wildflowers |
+| `scripts/world.gd` | Terrain, arena, trail, lake shape, where trees and bushes grow, rocks and wildflowers |
+| `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
 | `scripts/explore.gd`, `shaders/water.gdshader` | The places to discover (lake, windmill, stone circle and the rest) and the lake's water |
