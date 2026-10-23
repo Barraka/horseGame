@@ -1,7 +1,8 @@
 extends SceneTree
 ## Rides the horse to every place in the world (by moving it there) and
-## checks each one is discovered and counted, and that grass grew along
-## the way but not in the arena, the lake or the middle of the trail. Run with:
+## checks each one is discovered and counted, that grass grew along the
+## way but not in the arena, the lake or the middle of the trail, and that
+## every kind of tree and bush grows somewhere, out of the arena and lake. Run with:
 ## godot --headless --path . -s tests/explore_test.gd
 
 var main: Node
@@ -35,6 +36,7 @@ func _process(_delta: float) -> bool:
 			print("coins earned: %d" % earned)
 			var ok: bool = stable.discovered.size() == world.PLACES.size() and earned == stable.PLACE_COINS * world.PLACES.size()
 			ok = _grass_ok(world) and ok
+			ok = _trees_ok(world) and ok
 			stable.coins = coins_before
 			print("RESULT: ", "PASS" if ok else "FAIL")
 			stable.discovered.clear()
@@ -63,3 +65,19 @@ func _grass_ok(world: Node3D) -> bool:
 				misplaced += 1
 	print("grass: %d squares, %d tufts, %d in the wrong place" % [squares.size(), tufts, misplaced])
 	return squares.size() > 100 and tufts > 50000 and misplaced == 0
+
+
+func _trees_ok(world: Node3D) -> bool:
+	var kinds := {}
+	var misplaced := 0
+	for node in world.get_children():
+		if not node.name.begins_with("Trees_"):
+			continue
+		var mm: MultiMesh = node.multimesh
+		kinds[String(node.name).trim_prefix("Trees_").get_slice(":", 0).rsplit("_", true, 3)[0]] = true
+		for i in mm.instance_count:
+			var p := mm.get_instance_transform(i).origin
+			if world.is_in_arena(p.x, p.z) or world.is_in_lake(p.x, p.z, 2.0):
+				misplaced += 1
+	print("trees: kinds %s, %d in the wrong place" % [kinds.keys(), misplaced])
+	return kinds.size() == world.Trees.KINDS.size() and misplaced == 0

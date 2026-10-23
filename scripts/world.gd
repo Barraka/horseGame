@@ -14,7 +14,7 @@ extends Node3D
 @export var hill_height := 9.0
 @export var arena_center := Vector3(0, 0, -35)
 @export var arena_size := Vector2(56, 66)   ## Width (x) and length (z)
-@export var tree_count := 420
+@export var tree_count := 560
 @export var rock_count := 150
 @export var flower_count := 20000   ## Tries; most land outside the drifts
 
@@ -43,6 +43,9 @@ const TRAIL := [
 	Vector2(78, 16), Vector2(36, 12),
 ]
 const TRAIL_WIDTH := 3.0
+const TREE_VARIANTS := 3           ## Different-looking trees of each kind
+const PLANTING_SQUARE := 120.0     ## Trees are drawn in squares this big, so ones out of view are skipped
+const Trees := preload("res://scripts/trees.gd")
 const GRASS_DARK := Color(0.2, 0.44, 0.12)
 const GRASS_LIGHT := Color(0.47, 0.66, 0.2)
 const TRAIL_DARK := Color(0.56, 0.44, 0.3)
@@ -55,6 +58,8 @@ var rng := RandomNumberGenerator.new()
 var trail_points := PackedVector2Array()   ## The trail's centre line, a point every metre
 var _trail_mask := PackedFloat32Array()    ## 1 on the trail, fading to 0, on a 1 m grid
 var _ground_material: ShaderMaterial
+var _plantings := {}               ## [tree mesh key, square] -> [transforms, colours]
+var _tree_meshes := {}             ## "kind:variant" -> Mesh
 
 
 func _ready() -> void:
@@ -69,6 +74,7 @@ func _ready() -> void:
 	_build_arena()
 	_scatter_trees()
 	_scatter_bushes()
+	_build_plantings()
 	_build_flower_beds()
 	_scatter_rocks()
 	_scatter_grass()
@@ -371,60 +377,62 @@ func _sphere(radius: float, segments := 10, rings := 6) -> SphereMesh:
 	return m
 
 
-## Broadleaf trees have a fluffy crown made of several overlapping leaf
-## clumps; pines are three stacked cones.
+## Trees grow in groves of mostly one kind, with open meadow between:
+## willows and birches round the lake, pines up on the hills, blossom
+## trees near the arena, oaks and poplars elsewhere and the odd autumn
+## tree for colour. Each kind has a few variants (trees.gd), and each tree
+## is turned, sized and tinted a little differently.
 func _scatter_trees() -> void:
-	var trunk_mesh := CylinderMesh.new()
-	trunk_mesh.top_radius = 0.14
-	trunk_mesh.bottom_radius = 0.28
-	trunk_mesh.height = 2.6
-	trunk_mesh.radial_segments = 7
-	var pine_mesh := CylinderMesh.new()
-	pine_mesh.top_radius = 0.0
-	pine_mesh.bottom_radius = 1.5
-	pine_mesh.height = 2.6
-	pine_mesh.radial_segments = 9
-
-	var clumps_per_tree := 6
-	var trunks := _multimesh(trunk_mesh, tree_count, _vertex_color_material(), "TreeTrunks")
-	var clumps := _multimesh(_sphere(1.0), tree_count * clumps_per_tree, _vertex_color_material(0.8), "LeafClumps")
-	var pines := _multimesh(pine_mesh, tree_count * 3, _vertex_color_material(0.8), "PineLayers")
-	var clump_count := 0
-	var pine_count := 0
-
+	var groves := FastNoiseLite.new()
+	groves.seed = world_seed + 3
+	groves.frequency = 0.018
+	var kinds := FastNoiseLite.new()
+	kinds.seed = world_seed + 4
+	kinds.frequency = 0.012
 	for i in tree_count:
 		var spot := _random_spot(8.0)
-		var s := rng.randf_range(0.8, 1.5)
-		var yaw := Basis(Vector3.UP, rng.randf() * TAU)
-		trunks.set_instance_transform(i, Transform3D(yaw.scaled(Vector3.ONE * s), spot + Vector3(0, 1.3 * s, 0)))
-		trunks.set_instance_color(i, Color(0.4, 0.28, 0.18))
-		if rng.randf() < 0.3:
-			for layer in 3:
-				var ls := s * (1.0 - layer * 0.25)
-				var pos := spot + Vector3(0, s * (2.2 + layer * 1.15), 0)
-				pines.set_instance_transform(pine_count, Transform3D(yaw.scaled(Vector3.ONE * ls), pos))
-				pines.set_instance_color(pine_count, Color(0.12, 0.34, 0.2).lightened(layer * 0.05))
-				pine_count += 1
-		else:
-			var crown := spot + Vector3(0, s * 3.4, 0)
-			var green := Color(0.22, 0.48, 0.15).lerp(Color(0.42, 0.62, 0.18), rng.randf())
-			for c in clumps_per_tree:
-				var offset := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.5, 0.8), rng.randf_range(-1, 1)) * s
-				var r := s * rng.randf_range(0.9, 1.4)
-				clumps.set_instance_transform(clump_count, Transform3D(Basis().scaled(Vector3(r, r * 0.85, r)), crown + offset))
-				# Lighter clumps on top, as if lit by the sun.
-				clumps.set_instance_color(clump_count, green.lightened(clampf(offset.y * 0.12 + 0.05, 0.0, 0.2)))
-				clump_count += 1
-	clumps.visible_instance_count = clump_count
-	pines.visible_instance_count = pine_count
+		# Fewer trees outside the groves, so there are open meadows too.
+		if groves.get_noise_2d(spot.x, spot.z) < -0.1 and rng.randf() < 0.75:
+			continue
+		var kind := _tree_kind(spot, kinds.get_noise_2d(spot.x, spot.z))
+		_plant(kind, spot, rng.randf_range(0.85, 1.35))
+	# A ring of willows (and a few birches) on the lake shore.
+	for i in 24:
+		var a := i * TAU / 24.0 + rng.randf_range(-0.1, 0.1)
+		var p := LAKE_CENTER + Vector2(cos(a), sin(a)) * rng.randf_range(LAKE_RADIUS + 6.0, LAKE_RADIUS + 13.0)
+		if trail_at(p.x, p.y) > 0.0:
+			continue
+		_plant("willow" if rng.randf() < 0.75 else "birch", Vector3(p.x, height_at(p.x, p.y), p.y), rng.randf_range(0.95, 1.3))
 
 
-## Round bushes scattered in the meadow and along the arena fence.
+## Which kind of tree grows at a spot. `field` is a slowly changing noise
+## value, so neighbouring trees are mostly the same kind.
+func _tree_kind(spot: Vector3, field: float) -> String:
+	if rng.randf() < 0.04:
+		return "autumn"
+	var lake := Vector2(spot.x, spot.z).distance_to(LAKE_CENTER)
+	if lake < LAKE_RADIUS + 30.0:
+		return "willow" if rng.randf() < 0.35 else "birch"
+	var edge := maxf(absf(spot.x), absf(spot.z))
+	if spot.y > hill_height * 0.85 or edge > size * 0.5 - 50.0:
+		return "pine" if rng.randf() < 0.8 else "birch"
+	if Vector2(spot.x - arena_center.x, spot.z - arena_center.z).length() < 75.0 and rng.randf() < 0.45:
+		return "blossom"
+	if rng.randf() < 0.2:   # A few of anything, so groves aren't too tidy
+		return ["oak", "birch", "poplar", "pine"][rng.randi() % 4]
+	if field < -0.25:
+		return "pine"
+	if field < 0.05:
+		return "oak"
+	if field < 0.3:
+		return "birch"
+	return "poplar" if field < 0.45 else "oak"
+
+
+## Round bushes and flowering bushes scattered in the meadow and along the
+## arena fence.
 func _scatter_bushes() -> void:
-	var count := 140
-	var bushes := _multimesh(_sphere(1.0, 8, 5), count * 3, _vertex_color_material(0.85), "Bushes")
-	var placed := 0
-	for i in count:
+	for i in 160:
 		var spot := _random_spot(3.0)
 		if i < 40:
 			# Line the outside of the arena's long sides.
@@ -432,14 +440,38 @@ func _scatter_bushes() -> void:
 			var z := arena_center.z + rng.randf_range(-arena_size.y * 0.45, arena_size.y * 0.45)
 			var x := arena_center.x + side * (arena_size.x * 0.5 + rng.randf_range(2.5, 4.0))
 			spot = Vector3(x, height_at(x, z), z)
-		var green := Color(0.2, 0.42, 0.14).lerp(Color(0.36, 0.55, 0.18), rng.randf())
-		for c in 3:
-			var r := rng.randf_range(0.5, 0.9)
-			var offset := Vector3(rng.randf_range(-0.6, 0.6), r * 0.6, rng.randf_range(-0.6, 0.6))
-			bushes.set_instance_transform(placed, Transform3D(Basis().scaled(Vector3(r, r * 0.8, r)), spot + offset))
-			bushes.set_instance_color(placed, green)
-			placed += 1
-	bushes.visible_instance_count = placed
+		_plant("flower_bush" if rng.randf() < 0.3 else "bush", spot, rng.randf_range(0.8, 1.4))
+
+
+func _plant(kind: String, spot: Vector3, scale_by: float) -> void:
+	var key := "%s:%d" % [kind, rng.randi() % TREE_VARIANTS]
+	if not _tree_meshes.has(key):
+		_tree_meshes[key] = Trees.grow(kind, hash(key) + world_seed)
+	var square := Vector2i(floori(spot.x / PLANTING_SQUARE), floori(spot.z / PLANTING_SQUARE))
+	var bucket := [key, square]
+	if not _plantings.has(bucket):
+		_plantings[bucket] = [[], []]
+	var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * scale_by)
+	_plantings[bucket][0].append(Transform3D(b, spot - Vector3(0, 0.1, 0)))
+	var tint := rng.randf_range(0.88, 1.1)
+	_plantings[bucket][1].append(Color(tint, tint * rng.randf_range(0.97, 1.03), tint))
+
+
+func _build_plantings() -> void:
+	for bucket in _plantings:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = _tree_meshes[bucket[0]]
+		mm.instance_count = _plantings[bucket][0].size()
+		for i in mm.instance_count:
+			mm.set_instance_transform(i, _plantings[bucket][0][i])
+			mm.set_instance_color(i, _plantings[bucket][1][i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Trees_%s_%d_%d" % [bucket[0].replace(":", "_"), bucket[1].x, bucket[1].y]
+		mmi.multimesh = mm
+		add_child(mmi)
+	_plantings.clear()
 
 
 ## Rose beds on both sides of the arena entrance, like a show yard.
