@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://scripts/horse.gd" id="2_horse"]
@@ -15,6 +15,9 @@
 [ext_resource type="Script" path="res://scripts/bonding.gd" id="13_bonding"]
 [ext_resource type="Script" path="res://scripts/beach.gd" id="14_beach"]
 [ext_resource type="Script" path="res://scripts/ambience.gd" id="15_ambience"]
+[ext_resource type="Script" path="res://scripts/world_map.gd" id="16_map"]
+[ext_resource type="Script" path="res://scripts/photo_mode.gd" id="17_photo"]
+[ext_resource type="Script" path="res://scripts/mountains.gd" id="18_mountains"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.22, 0.47, 0.88, 1)
@@ -162,6 +165,10 @@ course_path = NodePath("../Course")
 script = ExtResource("14_beach")
 world_path = NodePath("../World")
 
+[node name="Mountains" type="Node3D" parent="."]
+script = ExtResource("18_mountains")
+world_path = NodePath("../World")
+
 [node name="Explore" type="Node3D" parent="."]
 script = ExtResource("9_explore")
 world_path = NodePath("../World")
@@ -187,3 +194,13 @@ horse_path = NodePath("../Horse")
 camera_path = NodePath("../CameraRig")
 world_path = NodePath("../World")
 hud_path = NodePath("../HUD")
+
+[node name="WorldMap" type="CanvasLayer" parent="."]
+script = ExtResource("16_map")
+world_path = NodePath("../World")
+horse_path = NodePath("../Horse")
+quests_path = NodePath("../Quests")
+
+[node name="PhotoMode" type="CanvasLayer" parent="."]
+script = ExtResource("17_photo")
+horse_path = NodePath("../Horse")

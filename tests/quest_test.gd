@@ -70,7 +70,7 @@ func _process(_delta: float) -> bool:
 	if steps.is_empty():
 		_check("All quests done", stable.quests.size() == quests.QUESTS.size()
 			and stable.quests.values().all(func(q): return q.state == "done"))
-		_check("Rewards add up to 490 coins", stable.coins - saved.coins == 490)
+		_check("Rewards add up to 590 coins", stable.coins - saved.coins == 590)
 		stable.quests = saved.quests
 		stable.training[stable.selected] = saved.training
 		stable.coins = saved.coins
@@ -94,7 +94,7 @@ func _plan(stable: Node) -> void:
 	steps.append(_go_to_person.bind("lily"))
 	steps.append(_press)
 	# Tom, Mia, Sam, Marina and Finn: things to pick up.
-	for quest in [["tom", "apples"], ["mia", "flowers"], ["sam", "horseshoe"], ["marina", "shells"], ["finn", "spyglass"]]:
+	for quest in [["tom", "apples"], ["mia", "flowers"], ["sam", "horseshoe"], ["marina", "shells"], ["finn", "spyglass"], ["heidi", "firewood"], ["lars", "scarf"]]:
 		steps.append(_go_to_person.bind(quest[0]))
 		steps.append(_press)
 		steps.append(_collect.bind(quest[1]))
