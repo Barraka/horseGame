@@ -41,6 +41,9 @@ func _ready() -> void:
 	_build_scene()
 	_build_ui()
 	_show_horse()
+	# A foal grows a little with each carrot.
+	Stable.care_changed.connect(func(i): if i == _index and not _shop.is_open(): _show_growth())
+	Stable.grown_up.connect(func(i): if i == _index: _show_horse())
 
 
 func _process(delta: float) -> void:
@@ -78,8 +81,7 @@ func _show_horse() -> void:
 	var horse: Dictionary = Stable.HORSES[_index]
 	_horse.show_coat(horse)
 	_name_label.text = horse.name
-	_coat_label.text = horse.coat
-	_ride_button.text = "Ride %s" % horse.name
+	_show_growth()
 	_horse.set_dirt(1.0 - Stable.care[_index].clean)
 	_care.show_horse(_index)
 	_tack.show_horse(_index)
@@ -89,11 +91,26 @@ func _show_horse() -> void:
 		_dots.get_child(i).modulate.a = 1.0 if i < owned.size() and owned[i] == _index else 0.35
 
 
+## The horse's size, and whether it's old enough to ride yet.
+func _show_growth() -> void:
+	var horse: Dictionary = Stable.HORSES[_index]
+	_horse.set_body_shape(Stable.body_shape(_index))
+	_horse.set_tack_visible(not Stable.is_foal(_index))
+	_coat_label.text = "%s%s · %s" % [horse.breed, " foal" if Stable.is_foal(_index) else "", horse.coat]
+	_ride_button.disabled = not Stable.can_ride(_index)
+	if Stable.can_ride(_index):
+		_ride_button.text = "Ride %s" % horse.name
+	else:
+		_ride_button.text = "Growing up: %d%%" % int(Stable.grown(_index) * 100.0)
+
+
 # --- Trying things on from the shop -------------------------------------------
 
 ## Show a horse from the shop on the stand, in its own tack if it has some.
 func preview_horse(index: int) -> void:
 	_horse.show_coat(Stable.HORSES[index])
+	_horse.set_body_shape(Stable.body_shape(index))
+	_horse.set_tack_visible(not Stable.is_foal(index))
 	_horse.set_tack(Stable.tack[index] if Stable.owns(index) else {})
 
 
@@ -130,7 +147,7 @@ func _open_rider_creator() -> void:
 
 
 func _ride() -> void:
-	if _shop.is_open():
+	if _shop.is_open() or not Stable.can_ride(_index):
 		return
 	Stable.select(_index)
 	get_tree().change_scene_to_file(RIDE_SCENE)
@@ -316,7 +333,8 @@ func _build_ui() -> void:
 	var ride_style := _style(Color(1, 0.97, 0.9, 0.95))
 	for state in ["normal", "hover", "pressed"]:
 		_ride_button.add_theme_stylebox_override(state, ride_style)
-	for state in ["font_color", "font_hover_color", "font_pressed_color"]:
+	_ride_button.add_theme_stylebox_override("disabled", _style(Color(1, 0.97, 0.9, 0.45)))
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
 		_ride_button.add_theme_color_override(state, Color(0.2, 0.15, 0.25))
 	var centre := CenterContainer.new()
 	centre.add_child(_ride_button)

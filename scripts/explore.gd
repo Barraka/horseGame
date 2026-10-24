@@ -384,10 +384,11 @@ func _build_lookout(spot: Vector3) -> void:
 
 
 func _build_wild_horses(spot: Vector3) -> void:
-	# Three horses of the stable's coats, standing about in their meadow.
-	var coats := [3, 4, 2]   # Grey, palomino, black (see stable_data.gd)
-	var offsets := [Vector3(-4, 0, 1), Vector3(3, 0, -3), Vector3(5, 0, 4)]
-	for i in 3:
+	# Three horses of the stable's coats standing about in their meadow, and
+	# a foal beside its grey mother.
+	var coats := [3, 4, 2, 3]   # Grey, palomino, black (see stable_data.gd)
+	var offsets := [Vector3(-4, 0, 1), Vector3(3, 0, -3), Vector3(5, 0, 4), Vector3(-2.2, 0, -0.6)]
+	for i in coats.size():
 		var horse := Horse.new()
 		horse.with_rider = false
 		var coat: Dictionary = Stable.HORSES[coats[i]]
@@ -395,10 +396,11 @@ func _build_wild_horses(spot: Vector3) -> void:
 		var p: Vector3 = spot + offsets[i]
 		p.y = _world.height_at(p.x, p.z)
 		horse.position = p
-		horse.rotation.y = i * 2.1 + 0.4
+		horse.rotation.y = i * 2.1 + 0.4 if i < 3 else 0.75
 		add_child(horse)
 		horse.set_physics_process(false)   # Scenery, not ridden
 		horse.show_coat(coat)
+		horse.set_body_shape(Stable.breed_shape(coat.breed, 0.2 if i == 3 else 1.0))
 		horse.set_dirt(0.15)
 		horse.stand()
 		_solid(Vector3(1.0, 1.8, 2.4), p + Vector3(0, 0.9, 0), horse.rotation.y)

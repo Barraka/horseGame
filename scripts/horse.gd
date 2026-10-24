@@ -74,6 +74,7 @@ const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "f
 @export var pattern_color := Color(0.95, 0.94, 0.92)
 @export var pattern_seed := 0.0                     ## Moves the patches and spots around
 @export_range(0.0, 1.0) var dirt := 0.0             ## Mud from riding; brushing cleans it
+@export var body_shape := Vector3.ONE               ## Breed size and build (Stable.body_shape)
 
 var target_gait := 0
 var current_gait := 0
@@ -82,6 +83,7 @@ var jumping := false
 var energy := 1.0   ## Breath for galloping, from 0 to 1
 
 var _visual: Node3D
+var _body: Node3D    # The horse model, scaled to its breed; tack and rider stay unscaled
 var _anim: AnimationPlayer
 var _gait_anims: Array = []
 var _clip_gait: Array = []   # Which gait each clip was animated for (sets its playback speed)
@@ -108,9 +110,13 @@ func _ready() -> void:
 	_visual = Node3D.new()
 	_visual.name = "Visual"
 	add_child(_visual)
+	_body = Node3D.new()
+	_body.name = "Body"
+	_visual.add_child(_body)
 	var stable := get_node_or_null("/root/Stable")
 	if stable and not Engine.is_editor_hint():
 		_read_coat(stable.current())
+		body_shape = stable.body_shape(stable.selected)
 		dirt = 1.0 - stable.care[stable.selected].clean
 		tack = stable.tack[stable.selected]
 	if ResourceLoader.exists(gait_set_dir.path_join(GAIT_SET[0].file)):
@@ -176,6 +182,24 @@ func _read_coat(horse: Dictionary) -> void:
 	coat_pattern = horse.get("pattern", 0)
 	pattern_color = horse.get("pattern_color", Color(0.95, 0.94, 0.92))
 	pattern_seed = float(hash(horse.name) % 97)
+
+
+## Draw the horse at a breed's size and build (or a foal's), as a scale in
+## width, height and length. The tack follows the horse; the rider keeps
+## their own size.
+func set_body_shape(shape: Vector3) -> void:
+	body_shape = shape
+	if _body:
+		_body.scale = shape
+	if _saddle:
+		_rest_pitch = _back_pitch(_back_points(0, 0.0))
+		_follow_back()
+
+
+## Show or hide the tack (foals don't wear any).
+func set_tack_visible(on: bool) -> void:
+	if _tack:
+		_tack.set_shown(on)
 
 
 ## Dress the horse in tack of these colours (see tack.gd).
@@ -377,7 +401,7 @@ func _build_gait_set() -> void:
 		var pivot := Node3D.new()
 		pivot.scale = Vector3.ONE * _set_scale
 		pivot.rotation.y = deg_to_rad(entry.yaw)
-		_visual.add_child(pivot)
+		_body.add_child(pivot)
 		var model := (load(gait_set_dir.path_join(entry.file)) as PackedScene).instantiate() as Node3D
 		model.position = entry.offset
 		pivot.add_child(model)
@@ -400,6 +424,7 @@ func _build_gait_set() -> void:
 		_set_models.append(model)
 		player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		_set_players.append(player)
+	_body.scale = body_shape
 	_show_gait_model(0)
 	_build_saddle()
 
@@ -509,7 +534,7 @@ func _track_point(index: int, mark: String, time: float) -> Vector3:
 ## The croup, seat and withers of gait clip `index` at `time`, in _visual's space.
 func _back_points(index: int, time: float) -> Array[Vector3]:
 	var model := _set_models[index]
-	var to_visual: Transform3D = (model.get_parent() as Node3D).transform * model.transform
+	var to_visual: Transform3D = _body.transform * (model.get_parent() as Node3D).transform * model.transform
 	var points: Array[Vector3] = []
 	for mark in ["croup", "seat", "withers"]:
 		points.append(to_visual * _track_point(index, mark, time))
@@ -532,14 +557,14 @@ func _follow_back() -> void:
 	var radii := {}
 	for mark in TACK_MARKS:
 		if track.has(mark + "_radius"):
-			radii[mark] = track[mark + "_radius"] * _set_scale
+			radii[mark] = track[mark + "_radius"] * _set_scale * (body_shape.x + body_shape.y) * 0.5
 	_tack.follow(_tack_marks(), radii, _saddle.transform)
 
 
 ## Everything else the tack hangs on, in _visual's space, right now.
 func _tack_marks() -> Dictionary:
 	var model := _set_models[_set_active]
-	var to_visual: Transform3D = (model.get_parent() as Node3D).transform * model.transform
+	var to_visual: Transform3D = _body.transform * (model.get_parent() as Node3D).transform * model.transform
 	var time := _set_players[_set_active].current_animation_position
 	var marks := {}
 	for mark in TACK_MARKS:
