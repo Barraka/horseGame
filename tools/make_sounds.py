@@ -134,6 +134,17 @@ def hoof(surface, variant):
         shff = shape(noise(0.18), 400, 3500, -0.5) * envelope(0.18, 0.01, 0.05)
         thud = sweep(90 * pitch, 50 * pitch, 0.18) * envelope(0.18, 0.004, 0.03) * 0.6
         return normalise(fade(shff + thud, 0.002, 0.03), 0.7)
+    if surface == "snow":
+        # A soft crunch: lots of tiny crackles packed close together.
+        length = 0.2
+        crackle = np.zeros(len(seconds(length)))
+        for k in range(28):
+            start = int(rng.uniform(0.0, 0.13) * RATE)
+            c = shape(noise(0.012), 1200, 7000) * envelope(0.012, 0.0005, 0.003)
+            crackle[start : start + len(c)] += c * rng.uniform(0.3, 1.0)
+        crackle *= envelope(length, 0.004, 0.06)
+        thud = sweep(95 * pitch, 50 * pitch, length) * envelope(length, 0.004, 0.03) * 0.5
+        return normalise(fade(crackle + thud, 0.002, 0.03), 0.65)
     # Water: a splash with a few bubbles.
     splash = shape(noise(0.35), 500, 5000) * envelope(0.35, 0.01, 0.09)
     bubbles = np.zeros_like(splash)
@@ -397,6 +408,8 @@ def main():
     save("land", normalise(fade(sweep(90, 40, 0.3) * envelope(0.3, 0.003, 0.08) + shape(noise(0.3), 200, 1500) * envelope(0.3, 0.002, 0.04) * 0.4, 0.001, 0.05), 0.9))
     save("whistle", whistle())
     save("music", music(), True)
+    for v in range(1, 4):
+        save("hoof_snow_%d" % v, hoof("snow", v))
 
 
 if __name__ == "__main__":

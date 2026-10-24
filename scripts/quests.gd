@@ -1,7 +1,8 @@
 extends Node3D
 ## People around the countryside who ask for help: jump a clear round,
 ## gather apples, deliver a letter, gallop, pick flowers, find a lost
-## horseshoe, gather seashells, find the lighthouse keeper's spyglass; and
+## horseshoe, gather seashells, find the lighthouse keeper's spyglass,
+## gather firewood for the mountain hut, find a ranger's scarf; and
 ## Coach Anna's riding lessons in the arena. Ride up to someone to talk. A gold "!" above their head means
 ## they have a quest; a "?" means you can collect your reward from them.
 ## Progress is saved with the stable.
@@ -43,6 +44,12 @@ const PEOPLE := {
 	"finn": {"name": "Keeper Finn", "pos": Vector2(178, -142),
 		"look": {"body": 1, "skin": 1, "hair": 5, "hair_color": 2, "outfit": 2, "helmet": 0},
 		"chat": "My light keeps the ships safe at night. Come and see it shine!"},
+	"heidi": {"name": "Heidi", "pos": Vector2(-38, -292),
+		"look": {"body": 0, "skin": 0, "hair": 1, "hair_color": 4, "outfit": 2, "helmet": 0},
+		"chat": "Come in out of the snow! There's always hot cocoa at the hut."},
+	"lars": {"name": "Ranger Lars", "pos": Vector2(-8, -316),
+		"look": {"body": 1, "skin": 3, "hair": 4, "hair_color": 1, "outfit": 0, "helmet": 0},
+		"chat": "The ice is thick enough to ride on. Isn't it beautiful up here?"},
 }
 
 ## The quests. "giver" offers it, "turn_in" (the giver unless given) hands
@@ -83,6 +90,14 @@ const QUESTS := [
 		"ask": "Oh no, I dropped my spyglass when I was looking at the old shipwreck! Could you ride out and find it?",
 		"goal": "Find Finn's spyglass by the Old Shipwreck",
 		"thanks": "My spyglass! Now I can watch the ships again. Thank you!"},
+	{"id": "firewood", "giver": "heidi", "reward": 50, "kind": "collect", "item": "log", "count": 6,
+		"ask": "Brr, the stove is nearly out! Could you bring me 6 logs? Look among the pine trees in the valley.",
+		"goal": "Gather firewood among the pines",
+		"thanks": "Lovely and warm again! Have some coins, and a cup of cocoa."},
+	{"id": "scarf", "giver": "lars", "reward": 50, "kind": "collect", "item": "scarf", "count": 1,
+		"ask": "Whoosh! The wind blew my red scarf right up to the Frozen Falls. Could you ride up and find it?",
+		"goal": "Find Lars's scarf at the Frozen Falls",
+		"thanks": "My favourite scarf! My ears were getting chilly. Thank you!"},
 	{"id": "lesson_1", "giver": "anna", "reward": 30, "kind": "lesson", "train": {"stamina": 80},
 		"ask": "Hello, I'm Coach Anna! Would you like a riding lesson? Today we'll walk, trot and halt in the arena. Follow the blue cones.",
 		"goal": "Lesson 1",
@@ -505,6 +520,12 @@ func _item_spots(quest: Dictionary) -> Array[Vector2]:
 				spots.append(Vector2(World.coast_x(z) - 3.0 - 2.0 * (k % 2), z))
 		"spyglass":
 			spots.append(World.PLACES[7].pos + Vector2(-9.0, -5.0))
+		"log":
+			# Under the pines up both sides of the valley.
+			spots.append_array([Vector2(-34, -270), Vector2(30, -282), Vector2(52, -302),
+				Vector2(-62, -320), Vector2(-40, -352), Vector2(58, -360)])
+		"scarf":
+			spots.append(World.PLACES[11].pos + Vector2(-6.0, 1.0))
 	return spots
 
 
@@ -605,6 +626,40 @@ func _make_item(kind: String) -> Node3D:
 				tube.rotation.z = PI / 2
 				tube.position.x = k * 0.18 - 0.18
 				item.add_child(tube)
+		"log":
+			var bark := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 0.13
+			cyl.bottom_radius = 0.14
+			cyl.height = 0.55
+			cyl.radial_segments = 10
+			bark.mesh = cyl
+			bark.material_override = glow.call(Color(0.45, 0.3, 0.18), 0.15)
+			bark.rotation.z = PI / 2
+			item.add_child(bark)
+			for side in [-1.0, 1.0]:
+				var end := MeshInstance3D.new()
+				var ring := CylinderMesh.new()
+				ring.top_radius = 0.12
+				ring.bottom_radius = 0.12
+				ring.height = 0.01
+				end.mesh = ring
+				end.material_override = glow.call(Color(0.85, 0.7, 0.45), 0.25)
+				end.rotation.z = PI / 2
+				end.position.x = side * 0.28
+				item.add_child(end)
+		"scarf":
+			var wool: StandardMaterial3D = glow.call(Color(0.9, 0.15, 0.2), 0.35)
+			var stripe: StandardMaterial3D = glow.call(Color(1.0, 0.95, 0.9), 0.3)
+			for k in 7:
+				var piece := MeshInstance3D.new()
+				var box := BoxMesh.new()
+				box.size = Vector3(0.16, 0.04, 0.17)
+				piece.mesh = box
+				piece.material_override = stripe if k % 3 == 1 else wool
+				piece.position = Vector3(sin(k * 0.9) * 0.12, 0.0, (k - 3) * 0.16)
+				piece.rotation.y = cos(k * 0.9) * 0.4
+				item.add_child(piece)
 	# A thin golden beam and a soft glow, so things can be spotted from a distance.
 	var beam_mat := StandardMaterial3D.new()
 	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED

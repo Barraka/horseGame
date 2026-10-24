@@ -47,6 +47,8 @@ func _process(_delta: float) -> bool:
 		var near := pos + (Vector2.ZERO - pos).normalized() * 12.0
 		if world.PLACES[index].id == "lake":
 			near = pos + (Vector2.ZERO - pos).normalized() * (world.LAKE_RADIUS + 8.0)
+		elif world.PLACES[index].has("reach"):
+			near = pos + (Vector2.ZERO - pos).normalized() * (world.PLACES[index].reach + 8.0)
 		horse.global_position = Vector3(near.x, world.height_at(near.x, near.y) + 0.5, near.y)
 		index += 1
 	return frames > 60 * 30

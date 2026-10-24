@@ -78,6 +78,8 @@ func _grow(square: Vector2i) -> void:
 			continue
 		if world.is_in_arena(x, z, 0.6) or world.is_in_lake(x, z, -1.0) or world.is_beach(x, z, -2.0):
 			continue
+		if rng.randf() < world.snow_at(x, z) * 3.0:
+			continue   # Thinning out into the snow
 		var trail: float = world.trail_at(x, z)
 		if trail > 0.45 or rng.randf() < trail * 2.2:
 			continue
