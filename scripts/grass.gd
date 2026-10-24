@@ -77,7 +77,7 @@ func _grow(square: Vector2i) -> void:
 		var keep := rng.randf()
 		if absf(x) > edge or absf(z) > edge or keep > 0.3 + lush * 0.7:
 			continue
-		if world.is_in_arena(x, z, 0.6) or world.is_in_lake(x, z, -1.0):
+		if world.is_in_arena(x, z, 0.6) or world.is_in_lake(x, z, -1.0) or world.is_beach(x, z, -2.0):
 			continue
 		var trail: float = world.trail_at(x, z)
 		if trail > 0.45 or rng.randf() < trail * 2.2:

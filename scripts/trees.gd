@@ -38,6 +38,9 @@ const KINDS := {
 	# Pines are grown separately: a straight trunk with rings of drooping branches.
 	"pine": {"height": 9.0, "radius": 0.25, "leaves": [Color(0.2, 0.42, 0.25), Color(0.25, 0.48, 0.28)],
 		"bark": Color(0.33, 0.24, 0.18)},
+	# Palms grow on the beach: a leaning, curving trunk with a crown of long fronds.
+	"palm": {"height": 6.5, "radius": 0.2, "leaves": [Color(0.3, 0.55, 0.18), Color(0.38, 0.6, 0.2)],
+		"bark": Color(0.55, 0.45, 0.33)},
 	# Bushes: a few leaf clusters on the ground, some with flowers.
 	"bush": {"leaves": [Color(0.24, 0.46, 0.14), Color(0.3, 0.52, 0.16)]},
 	"flower_bush": {"leaves": [Color(0.22, 0.44, 0.14)],
@@ -77,6 +80,10 @@ func _grow(kind: String, seed: int) -> ArrayMesh:
 			texture = "needles"
 			_atlas = false
 			_grow_pine()
+		"palm":
+			texture = "frond"
+			_atlas = false
+			_grow_palm()
 		"bush", "flower_bush":
 			_grow_bush(kind == "flower_bush")
 		_:
@@ -171,6 +178,53 @@ func _grow_pine() -> void:
 	for c in 3:
 		var a := c * TAU / 3.0
 		_card(tip + Vector3(0, -0.3, 0), Vector3(cos(a), 0.6, sin(a)).normalized(), Vector3.UP, 0.9, _leaf_color(), Vector3.UP)
+
+
+## A palm: a trunk leaning one way and curving back up, in short ringed
+## pieces, with a crown of long arching fronds and a few coconuts.
+func _grow_palm() -> void:
+	var height: float = _kind.height * _rng.randf_range(0.8, 1.2)
+	_top = height + 1.0
+	var lean := Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)).normalized() * _rng.randf_range(0.25, 0.5)
+	var at := Vector3.ZERO
+	var pieces := 9
+	for i in pieces:
+		var t := (i + 1.0) / pieces
+		# Leans out low down, then curves back towards upright.
+		var next := Vector3(lean.x * sin(t * PI * 0.8) * height * 0.45, t * height, lean.z * sin(t * PI * 0.8) * height * 0.45)
+		_tube(at, next, lerpf(_kind.radius * 1.3, _kind.radius * 0.8, i / float(pieces)), lerpf(_kind.radius * 1.3, _kind.radius * 0.8, t), 7)
+		at = next
+	var fronds := 11
+	for i in fronds:
+		var a := i * TAU / fronds + _rng.randf_range(-0.2, 0.2)
+		var out := Vector3(cos(a), 0, sin(a))
+		var length := _rng.randf_range(2.6, 3.4)
+		var rise := _rng.randf_range(0.3, 0.9)
+		var across := Vector3(-out.z, 0, out.x)
+		var color := _leaf_color()
+		var steps := 6
+		var prev := at
+		for k in steps:
+			var t1 := (k + 1.0) / steps
+			# An arch: up and out, then drooping down at the tip.
+			var p := at + out * length * t1 + Vector3.UP * (rise * sin(t1 * PI * 0.7) - t1 * t1 * 1.4)
+			var w0 := 0.62 * sin(maxf(k / float(steps), 0.08) * PI * 0.92 + 0.15)
+			var w1 := 0.62 * sin(t1 * PI * 0.92 + 0.15)
+			var corners := [prev - across * w0, prev + across * w0, p + across * w1, p - across * w1]
+			var uvs := [Vector2(0, k / float(steps)), Vector2(1, k / float(steps)), Vector2(1, t1), Vector2(0, t1)]
+			var normal := (Vector3.UP + out * 0.3).normalized()
+			for c in [0, 1, 2, 0, 2, 3]:
+				_leaves.set_color(color * lerpf(0.8, 1.05, uvs[c].y))
+				_leaves.set_normal(normal)
+				_leaves.set_uv(uvs[c])
+				_leaves.set_uv2(Vector2(clampf(corners[c].y / _top, 0.0, 1.0) * (0.6 + uvs[c].y), 0))
+				_leaves.add_vertex(corners[c])
+			prev = p
+	# Coconuts, as small brown leaf-free balls of bark.
+	for i in _rng.randi_range(2, 4):
+		var a := _rng.randf() * TAU
+		var nut := at + Vector3(cos(a) * 0.22, -0.25, sin(a) * 0.22)
+		_tube(nut + Vector3.DOWN * 0.12, nut + Vector3.UP * 0.12, 0.13, 0.11, 6)
 
 
 ## A bush: a few overlapping leaf clusters sitting on the ground, and for
@@ -311,6 +365,7 @@ static func foliage_material(picture: String) -> ShaderMaterial:
 		match picture:
 			"needles": image = _needles_image(128)
 			"strands": image = _strands_image(64, 256)
+			"frond": image = _frond_image(64, 256)
 			_: image = _leaves_image(128)
 		image.generate_mipmaps()
 		mat.set_shader_parameter("leaves", ImageTexture.create_from_image(image))
@@ -375,6 +430,27 @@ static func _needles_image(size: int) -> Image:
 				var slant := fmod(absf(p.x) * 1.2 + p.y + 10.0, 0.045)
 				if slant < 0.018 or absf(p.x) < 0.012:
 					var g := lerpf(1.0, 0.7, absf(p.x) / maxf(outline, 0.01))
+					c = Color(g, g, g, 1.0)
+			image.set_pixel(x, y, c)
+	return image
+
+
+## A palm frond: a stem down the middle with long thin leaflets slanting
+## out to both sides, running from the trunk (top) to the tip (bottom).
+static func _frond_image(width: int, height: int) -> Image:
+	var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
+	for y in height:
+		for x in width:
+			var p := Vector2((x + 0.5) / width - 0.5, (y + 0.5) / height)
+			var c := Color(0, 0, 0, 0)
+			var side := absf(p.x)
+			if side < 0.02:
+				c = Color(0.85, 0.85, 0.7, 1.0)
+			elif side < 0.5:
+				# Leaflets: thin stripes slanting back towards the tip.
+				var stripe := fmod(p.y * 28.0 - side * 3.0 + 10.0, 1.0)
+				if stripe < 0.42 and side < 0.48 - stripe * 0.15:
+					var g := lerpf(1.0, 0.7, side * 2.0)
 					c = Color(g, g, g, 1.0)
 			image.set_pixel(x, y, c)
 	return image
