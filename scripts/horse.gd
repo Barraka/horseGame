@@ -64,6 +64,8 @@ const GAIT_SET_JUMP_TIME := 0.167             ## ...which is this far into the c
 const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, in model units
 const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's back, in metres
 const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "fr_low", "fr_high", "hl_low", "hl_high", "hr_low", "hr_high"]
+## The grooming salon's braids and tail bow follow these (tools/groom_track.py).
+const GROOM_MARKS := ["croup", "dock", "crest_0", "crest_1", "crest_2", "crest_3", "crest_4", "crest_5", "crest_6"]
 
 @export_dir var gait_set_dir := "res://assets/horse/gaits"
 @export var with_rider := true   ## Seat the player's rider on the gait set horse
@@ -226,12 +228,27 @@ func set_rider_visible(on: bool) -> void:
 		_follow_back()
 
 
-## Dress the horse in tack of these colours (see tack.gd).
+## Dress the horse in tack of these colours, and groom it (see tack.gd).
 func set_tack(config: Dictionary) -> void:
 	tack = config
+	_set_groom()
 	if _tack:
+		_tack.mane_color = points_color
 		_tack.build(config, _saddle)
 		_follow_back()
+
+
+## The grooming salon's markings and glitter, painted by the coat shader.
+func _set_groom() -> void:
+	if not _coat_material:
+		return
+	var options: Dictionary = preload("res://scripts/tack.gd").OPTIONS
+	var glitter: Dictionary = options.glitter[clampi(tack.get("glitter", 0), 0, options.glitter.size() - 1)]
+	_coat_material.set_shader_parameter("face_marking", tack.get("face", 0))
+	_coat_material.set_shader_parameter("leg_marking", tack.get("legs", 0))
+	_coat_material.set_shader_parameter("glitter", 0.0 if glitter.color.a == 0.0 else 1.0)
+	_coat_material.set_shader_parameter("glitter_color", glitter.color)
+	_coat_material.set_shader_parameter("glitter_rainbow", glitter.get("rainbow", false))
 
 
 ## How muddy the horse looks, from 0 (spotless) to 1.
@@ -562,6 +579,11 @@ func _build_gait_set() -> void:
 	_set_scale = model_length / GAIT_SET_LENGTH
 	var file := FileAccess.open(gait_set_dir.path_join("saddle_track.json"), FileAccess.READ)
 	_saddle_track = JSON.parse_string(file.get_as_text())
+	var groom := FileAccess.open(gait_set_dir.path_join("groom_track.json"), FileAccess.READ)
+	if groom:
+		var extra: Dictionary = JSON.parse_string(groom.get_as_text())
+		for clip in extra:
+			_saddle_track[clip].merge(extra[clip])
 	for entry in GAIT_SET:
 		var pivot := Node3D.new()
 		pivot.scale = Vector3.ONE * _set_scale
@@ -600,8 +622,10 @@ func _coat(original: Material) -> ShaderMaterial:
 		_coat_material = ShaderMaterial.new()
 		_coat_material.shader = preload("res://shaders/coat.gdshader")
 		_coat_material.set_shader_parameter("albedo_texture", (original as BaseMaterial3D).albedo_texture)
+		_coat_material.set_shader_parameter("markings_map", load(gait_set_dir.path_join("markings.png")))
 		set_coat(coat_color, points_color, coat_strength)
 		set_dirt(dirt)
+		_set_groom()
 	return _coat_material
 
 
@@ -735,6 +759,9 @@ func _tack_marks() -> Dictionary:
 	var marks := {}
 	for mark in TACK_MARKS:
 		marks[mark] = to_visual * _track_point(_set_active, mark, time)
+	if _saddle_track[GAIT_SET[_set_active].file].has("dock"):
+		for mark in GROOM_MARKS:
+			marks[mark] = to_visual * _track_point(_set_active, mark, time)
 	return marks
 
 
