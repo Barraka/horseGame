@@ -134,18 +134,27 @@ func _build_ui(root: Control) -> void:
 	column.add_theme_constant_override("separation", 10)
 	_panel.add_child(column)
 	column.add_child(_label("Trophies", 24))
+	# The competitions two by two.
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 24)
+	grid.add_theme_constant_override("v_separation", 10)
+	column.add_child(grid)
 	for which in Competitions.EVENTS:
+		var event := VBoxContainer.new()
+		event.add_theme_constant_override("separation", 4)
+		grid.add_child(event)
 		var title := _label(Competitions.EVENTS[which], 18)
 		title.modulate = Color(1, 0.95, 0.85, 0.8)
-		column.add_child(title)
+		event.add_child(title)
 		var row := HBoxContainer.new()
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
-		row.add_theme_constant_override("separation", 14)
-		column.add_child(row)
+		row.add_theme_constant_override("separation", 6)
+		event.add_child(row)
 		for i in Competitions.CUPS.size():
 			var cell := VBoxContainer.new()
 			cell.add_theme_constant_override("separation", 0)
-			cell.custom_minimum_size.x = 96
+			cell.custom_minimum_size.x = 80
 			row.add_child(cell)
 			var icon := TextureRect.new()
 			icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED

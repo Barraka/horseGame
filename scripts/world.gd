@@ -80,6 +80,7 @@ var _ground_material: ShaderMaterial
 var _plantings := {}               ## [tree mesh key, square] -> [transforms, colours]
 var _flower_material: ShaderMaterial
 var _tree_meshes := {}             ## "kind:variant" -> Mesh
+var ponds: Array[Vector3] = []     ## Little splashes of water (x, z, radius), like the cross-country's
 
 
 func _ready() -> void:
@@ -179,6 +180,13 @@ func trail_at(x: float, z: float) -> float:
 
 func is_in_lake(x: float, z: float, margin := 0.0) -> bool:
 	return Vector2(x, z).distance_to(LAKE_CENTER) < LAKE_RADIUS + margin
+
+
+func is_in_pond(x: float, z: float) -> bool:
+	for pond in ponds:
+		if Vector2(x, z).distance_to(Vector2(pond.x, pond.y)) < pond.z:
+			return true
+	return false
 
 
 ## Somewhere trees and rocks should stay away from.
