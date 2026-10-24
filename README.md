@@ -84,7 +84,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
-| `scripts/explore.gd`, `shaders/water.gdshader` | The places to discover (lake, windmill, stone circle and the rest) and the lake's water |
+| `scripts/explore.gd`, `shaders/water.gdshader`, `shaders/flag.gdshader` | The places to discover (lake, windmill, stone circle and the rest), the lake's water and the lookout's flag |
+| `scripts/rocks.gd`, `shaders/rock.gdshader` | Lumpy, mossy rocks and standing stones made in code |
 | `scripts/course.gd`, `scripts/fence.gd`, `scripts/gate.gd` | Show jumping course, scoring, fences and gates |
 | `scripts/follow_camera.gd` | Third-person camera |
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
