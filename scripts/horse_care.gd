@@ -15,6 +15,7 @@ var _index := 0
 var _bars := {}           ## Care key -> ProgressBar
 var _mood: Label
 var _skills := {}         ## Skill -> [level Label, ProgressBar to the next level]
+var _growth: Array        ## [line, ProgressBar]: how grown up a foal is
 var _panel: PanelContainer
 var _toast: Label
 var _brush_button: Button
@@ -36,6 +37,7 @@ func setup(horse: Node3D, camera: Camera3D, ui_root: Control) -> void:
 
 func show_horse(index: int) -> void:
 	_index = index
+	_box = AABB()   # Each breed is its own size
 	_set_brushing(false)
 	_refresh()
 
@@ -130,7 +132,7 @@ func _body_box() -> AABB:
 		var first := true
 		for node in _horse.find_children("*", "MeshInstance3D", true, false):
 			var mi := node as MeshInstance3D
-			if mi.is_visible_in_tree() and mi.mesh and mi.mesh.get_blend_shape_count() > 0:
+			if mi.is_visible_in_tree() and mi.mesh is ArrayMesh and mi.mesh.get_blend_shape_count() > 0:
 				var aabb: AABB = to_horse * mi.global_transform * mi.get_aabb()
 				_box = aabb if first else _box.merge(aabb)
 				first = false
@@ -279,6 +281,8 @@ func _refresh() -> void:
 		_skills[skill][1].value = Stable.skill_progress(_index, skill) * 100.0
 	var horse_name: String = Stable.HORSES[_index].name
 	var happy: float = Stable.happiness(_index)
+	_growth[0].visible = Stable.is_foal(_index)
+	_growth[1].value = Stable.grown(_index) * 100.0
 	if care.food < 0.25:
 		_mood.text = "%s is hungry" % horse_name
 	elif care.clean < 0.25:
@@ -289,6 +293,8 @@ func _refresh() -> void:
 		_mood.text = "%s is very happy" % horse_name
 	else:
 		_mood.text = "%s is happy" % horse_name
+	if Stable.is_foal(_index) and happy >= 0.5:
+		_mood.text = "%s is growing up" % horse_name
 	_horse.set_dirt(1.0 - care.clean)
 
 
@@ -314,6 +320,8 @@ func _build_ui(root: Control) -> void:
 	column.add_child(_mood)
 	for row in [["food", "Food", Color(1.0, 0.6, 0.2)], ["clean", "Clean", Color(0.45, 0.75, 1.0)], ["love", "Love", Color(1.0, 0.45, 0.65)]]:
 		_bars[row[0]] = _bar_row(column, row[1], row[2], 180.0)[1]
+
+	_growth = _bar_row(column, "Grow", Color(0.55, 0.9, 0.45), 180.0)
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)

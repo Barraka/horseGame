@@ -2,7 +2,7 @@ extends SceneTree
 ## Rides the horse to every place in the world (by moving it there) and
 ## checks each one is discovered and counted, that grass grew along the
 ## way but not in the arena, the lake or the middle of the trail, and that
-## every kind of tree and bush grows somewhere, out of the arena and lake. Run with:
+## every kind of tree, bush and rock is there, out of the arena and lake. Run with:
 ## godot --headless --path . -s tests/explore_test.gd
 
 var main: Node
@@ -80,4 +80,4 @@ func _trees_ok(world: Node3D) -> bool:
 			if world.is_in_arena(p.x, p.z) or world.is_in_lake(p.x, p.z, 2.0):
 				misplaced += 1
 	print("trees: kinds %s, %d in the wrong place" % [kinds.keys(), misplaced])
-	return kinds.size() == world.Trees.KINDS.size() and misplaced == 0
+	return kinds.size() == world.Trees.KINDS.size() + 1 and kinds.has("rock") and misplaced == 0

@@ -1,5 +1,6 @@
 extends Node3D
-## The stable: browse your horses, see each one up close, look after them,
+## The stable: browse your horses, see each one up close in the stable
+## building's aisle (the others stand in their stalls), look after them,
 ## choose their tack, see the trophies won, and pick one to ride.
 
 const Horse := preload("res://scripts/horse.gd")
@@ -8,6 +9,7 @@ const TackPanel := preload("res://scripts/tack_panel.gd")
 const Shop := preload("res://scripts/shop.gd")
 const TrophyShelf := preload("res://scripts/trophy_shelf.gd")
 const CoinBadge := preload("res://scripts/coin_badge.gd")
+const StableBarn := preload("res://scripts/stable_barn.gd")
 const RIDE_SCENE := "res://scenes/main.tscn"
 const RIDER_SCENE := "res://scenes/rider_creator.tscn"
 const CAMERA_POS := Vector3(4.5, 1.8, 5.1)
@@ -22,6 +24,7 @@ var _trophies: Node
 var _picker: PanelContainer
 var _camera: Camera3D
 var _turntable: Node3D
+var _barn: Node3D
 var _name_label: Label
 var _coat_label: Label
 var _ride_button: Button
@@ -41,6 +44,9 @@ func _ready() -> void:
 	_build_scene()
 	_build_ui()
 	_show_horse()
+	# A foal grows a little with each carrot.
+	Stable.care_changed.connect(func(i): if i == _index and not _shop.is_open(): _show_growth())
+	Stable.grown_up.connect(func(i): if i == _index: _show_horse())
 
 
 func _process(delta: float) -> void:
@@ -78,15 +84,28 @@ func _show_horse() -> void:
 	var horse: Dictionary = Stable.HORSES[_index]
 	_horse.show_coat(horse)
 	_name_label.text = horse.name
-	_coat_label.text = horse.coat
-	_ride_button.text = "Ride %s" % horse.name
+	_show_growth()
 	_horse.set_dirt(1.0 - Stable.care[_index].clean)
 	_care.show_horse(_index)
 	_tack.show_horse(_index)
+	_barn.fill_stalls(_index)
 	var owned: Array[int] = Stable.owned_horses()
 	for i in _dots.get_child_count():
 		_dots.get_child(i).visible = i < owned.size()
 		_dots.get_child(i).modulate.a = 1.0 if i < owned.size() and owned[i] == _index else 0.35
+
+
+## The horse's size, and whether it's old enough to ride yet.
+func _show_growth() -> void:
+	var horse: Dictionary = Stable.HORSES[_index]
+	_horse.set_body_shape(Stable.body_shape(_index))
+	_horse.set_tack_visible(not Stable.is_foal(_index))
+	_coat_label.text = "%s%s · %s" % [horse.breed, " foal" if Stable.is_foal(_index) else "", horse.coat]
+	_ride_button.disabled = not Stable.can_ride(_index)
+	if Stable.can_ride(_index):
+		_ride_button.text = "Ride %s" % horse.name
+	else:
+		_ride_button.text = "Growing up: %d%%" % int(Stable.grown(_index) * 100.0)
 
 
 # --- Trying things on from the shop -------------------------------------------
@@ -94,6 +113,8 @@ func _show_horse() -> void:
 ## Show a horse from the shop on the stand, in its own tack if it has some.
 func preview_horse(index: int) -> void:
 	_horse.show_coat(Stable.HORSES[index])
+	_horse.set_body_shape(Stable.body_shape(index))
+	_horse.set_tack_visible(not Stable.is_foal(index))
 	_horse.set_tack(Stable.tack[index] if Stable.owns(index) else {})
 
 
@@ -130,7 +151,7 @@ func _open_rider_creator() -> void:
 
 
 func _ride() -> void:
-	if _shop.is_open():
+	if _shop.is_open() or not Stable.can_ride(_index):
 		return
 	Stable.select(_index)
 	get_tree().change_scene_to_file(RIDE_SCENE)
@@ -170,56 +191,10 @@ func _build_scene() -> void:
 	sun.shadow_enabled = true
 	add_child(sun)
 
-	# A round paddock of grass with a sandy patch under the horse.
-	_disc(80.0, Color(0.24, 0.48, 0.15), 0.0)
-	_disc(2.6, Color(0.82, 0.72, 0.55), 0.01)
-
-	# A wooden fence in a half circle behind the horse.
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.55, 0.38, 0.24)
-	wood.roughness = 0.8
-	var post := BoxMesh.new()
-	post.size = Vector3(0.14, 1.3, 0.14)
-	var rail := BoxMesh.new()
-	rail.size = Vector3(0.08, 0.1, 1.0)
-	var radius := 5.5
-	var steps := 12
-	var gap := atan2(CAMERA_POS.z, CAMERA_POS.x)   # Open towards the camera
-	for i in steps + 1:
-		var a := lerpf(PI * 0.15, PI * 1.85, float(i) / steps) + gap
-		var p := Vector3(cos(a), 0, sin(a)) * radius
-		_mesh(post, wood, p + Vector3.UP * 0.65)
-		if i < steps:
-			var a2 := lerpf(PI * 0.15, PI * 1.85, float(i + 1) / steps) + gap
-			var p2 := Vector3(cos(a2), 0, sin(a2)) * radius
-			for h in [0.55, 1.05]:
-				var r := _mesh(rail, wood, (p + p2) * 0.5 + Vector3.UP * h)
-				r.look_at_from_position(r.position, p2 + Vector3.UP * h)
-				r.scale.z = p.distance_to(p2)
-
-	# Rose bushes along the fence.
-	var leaf := StandardMaterial3D.new()
-	leaf.albedo_color = Color(0.2, 0.45, 0.18)
-	var bloom := StandardMaterial3D.new()
-	bloom.albedo_color = Color(0.95, 0.35, 0.5)
-	bloom.emission_enabled = true
-	bloom.emission = Color(0.4, 0.05, 0.15)
-	var bush := SphereMesh.new()
-	bush.radius = 0.45
-	bush.height = 0.7
-	var flower := SphereMesh.new()
-	flower.radius = 0.08
-	flower.height = 0.14
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
-	for i in 9:
-		var a := lerpf(PI * 0.25, PI * 1.75, i / 8.0) + gap
-		var p := Vector3(cos(a), 0.25, sin(a)) * (radius + 0.6)
-		p.y = 0.25
-		_mesh(bush, leaf, p)
-		for f in 6:
-			var d := Vector3(rng.randf_range(-1, 1), rng.randf_range(0.2, 1), rng.randf_range(-1, 1)).normalized()
-			_mesh(flower, bloom, p + d * 0.42)
+	# The stable building, turned so the camera looks down its aisle.
+	_barn = StableBarn.new()
+	_barn.rotation.y = atan2(CAMERA_POS.x, CAMERA_POS.z)
+	add_child(_barn)
 
 	_turntable = Node3D.new()
 	add_child(_turntable)
@@ -234,27 +209,6 @@ func _build_scene() -> void:
 	add_child(_camera)
 	_camera.look_at_from_position(CAMERA_POS, CAMERA_TARGET)
 	_turntable.rotation.y = deg_to_rad(-70)
-
-
-func _disc(radius: float, color: Color, height: float) -> void:
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = 0.02
-	mesh.radial_segments = 64
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 0.95
-	_mesh(mesh, material, Vector3(0, height - 0.01, 0))
-
-
-func _mesh(mesh: Mesh, material: Material, pos: Vector3) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = material
-	mi.position = pos
-	add_child(mi)
-	return mi
 
 
 # --- On-screen controls -------------------------------------------------------
@@ -316,7 +270,8 @@ func _build_ui() -> void:
 	var ride_style := _style(Color(1, 0.97, 0.9, 0.95))
 	for state in ["normal", "hover", "pressed"]:
 		_ride_button.add_theme_stylebox_override(state, ride_style)
-	for state in ["font_color", "font_hover_color", "font_pressed_color"]:
+	_ride_button.add_theme_stylebox_override("disabled", _style(Color(1, 0.97, 0.9, 0.45)))
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
 		_ride_button.add_theme_color_override(state, Color(0.2, 0.15, 0.25))
 	var centre := CenterContainer.new()
 	centre.add_child(_ride_button)

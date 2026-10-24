@@ -59,6 +59,13 @@ var _straps := {}   ## Name -> box MeshInstance3D stretched between two points e
 var _materials := {}
 
 
+## Show or hide all of the tack, the saddle too.
+func set_shown(on: bool) -> void:
+	visible = on
+	if _saddle_parts:
+		_saddle_parts.visible = on
+
+
 ## Build the tack from a config (missing keys keep their defaults). The
 ## saddle goes under `saddle_root`, which horse.gd keeps on the horse's back.
 func build(new_config: Dictionary, saddle_root: Node3D) -> void:
@@ -77,6 +84,7 @@ func build(new_config: Dictionary, saddle_root: Node3D) -> void:
 	_make_materials()
 	_saddle_parts = Node3D.new()
 	_saddle_parts.name = "SaddleParts"
+	_saddle_parts.visible = visible
 	saddle_root.add_child(_saddle_parts)
 	_build_saddle()
 	_build_bridle()

@@ -64,7 +64,8 @@ func _fill() -> void:
 		for i in Stable.HORSES.size():
 			var horse: Dictionary = Stable.HORSES[i]
 			if horse.has("price"):
-				_add_row(horse.name, horse.coat, [horse.body, horse.get("pattern_color", horse.points)],
+				var kind := "%s%s · %s" % [horse.breed, " foal" if horse.get("foal", false) else "", horse.coat]
+				_add_row(horse.name, kind, [horse.body, horse.get("pattern_color", horse.points)],
 					horse.price, Stable.owns(i), _preview_horse.bind(i), _buy_horse.bind(i))
 	else:
 		for key in Tack.OPTIONS:
