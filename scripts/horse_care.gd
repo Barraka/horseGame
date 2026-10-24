@@ -83,7 +83,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _feed() -> void:
 	_set_brushing(false)
-	var horse_name: String = Stable.HORSES[_index].name
+	var horse_name: String = Stable.horse_name(_index)
 	if not Stable.feed(_index):
 		_say("%s is full!" % horse_name)
 		return
@@ -108,7 +108,7 @@ func _pet() -> void:
 		return
 	_pet_wait = PET_COOLDOWN
 	Stable.pet(_index)
-	var horse_name: String = Stable.HORSES[_index].name
+	var horse_name: String = Stable.horse_name(_index)
 	_say(["%s nuzzles you." % horse_name, "%s loves a pat." % horse_name, "Good horse, %s!" % horse_name].pick_random())
 	_puff(_neck(), Color(1.0, 0.4, 0.6), 5, _heart_texture)
 
@@ -120,7 +120,7 @@ func _set_brushing(on: bool) -> void:
 	if _brush_button:
 		_brush_button.text = "Done" if on else "Brush"
 	if on:
-		_say("Rub the brush over %s." % Stable.HORSES[_index].name)
+		_say("Rub the brush over %s." % Stable.horse_name(_index))
 
 
 # --- Where things are on the horse --------------------------------------------
@@ -279,7 +279,7 @@ func _refresh() -> void:
 		var level: int = Stable.skill_level(_index, skill)
 		_skills[skill][0].text = "Lv %d" % level
 		_skills[skill][1].value = Stable.skill_progress(_index, skill) * 100.0
-	var horse_name: String = Stable.HORSES[_index].name
+	var horse_name: String = Stable.horse_name(_index)
 	var happy: float = Stable.happiness(_index)
 	_growth[0].visible = Stable.is_foal(_index)
 	_growth[1].value = Stable.grown(_index) * 100.0

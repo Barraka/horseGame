@@ -53,6 +53,8 @@ var config: Dictionary = DEFAULT.duplicate()
 var rider: Node3D   ## When set, the reins run to its hands and the stirrups to its feet
 
 var _saddle_parts: Node3D
+var _shells: Node3D          # Pad and saddle, scaled to the horse's breed
+var body_scale := Vector3.ONE  ## The horse's breed size and build (horse.gd body_shape)
 var _wraps: Array[MeshInstance3D] = []
 var _rings := {}    ## Name -> torus MeshInstance3D placed each frame
 var _straps := {}   ## Name -> box MeshInstance3D stretched between two points each frame
@@ -153,22 +155,34 @@ func _back_width(depth: float) -> float:
 	return 0.0
 
 
+## Fit the saddle and pad to a horse of another size or build.
+func set_body_scale(shape: Vector3) -> void:
+	body_scale = shape
+	if _shells:
+		_shells.scale = shape
+
+
 func _build_saddle() -> void:
+	# The pad and saddle are shaped to the back of a warmblood, then
+	# stretched like the horse's body (see horse.gd), around the seat.
+	_shells = Node3D.new()
+	_shells.scale = body_scale
+	_saddle_parts.add_child(_shells)
 	# The pad, with trim along its lower edges and across its front and back.
-	_add(_shell(-PAD_DEPTH, PAD_DEPTH, -0.33, 0.31, 0.0), _materials.pad, _saddle_parts)
+	_add(_shell(-PAD_DEPTH, PAD_DEPTH, -0.33, 0.31, 0.0), _materials.pad, _shells)
 	for s in [-1.0, 1.0]:
-		_add(_shell(s * (PAD_DEPTH - 0.035), s * PAD_DEPTH, -0.33, 0.31, 0.004), _materials.trim, _saddle_parts)
+		_add(_shell(s * (PAD_DEPTH - 0.035), s * PAD_DEPTH, -0.33, 0.31, 0.004), _materials.trim, _shells)
 	for z in [-0.33, 0.275]:
-		_add(_shell(-PAD_DEPTH, PAD_DEPTH, z, z + 0.035, 0.004), _materials.trim, _saddle_parts)
+		_add(_shell(-PAD_DEPTH, PAD_DEPTH, z, z + 0.035, 0.004), _materials.trim, _shells)
 	# The saddle: flaps over the pad, and a raised pommel and cantle.
-	_add(_shell(-SADDLE_DEPTH, SADDLE_DEPTH, -0.22, 0.2, 0.026), _materials.saddle, _saddle_parts)
+	_add(_shell(-SADDLE_DEPTH, SADDLE_DEPTH, -0.22, 0.2, 0.026), _materials.saddle, _shells)
 	for part in [[0.1, -0.2, -0.01], [0.13, 0.19, -0.035]]:
 		var mesh := CylinderMesh.new()
 		mesh.top_radius = part[0]
 		mesh.bottom_radius = part[0]
 		mesh.height = 0.05
 		mesh.radial_segments = 24
-		var mi := _add(mesh, _materials.saddle, _saddle_parts)
+		var mi := _add(mesh, _materials.saddle, _shells)
 		mi.rotation.x = PI / 2
 		mi.position = Vector3(0, part[2] + _back_rise(part[1]), part[1])
 		mi.scale = Vector3(1.0, 1.0, 0.75)
@@ -309,13 +323,13 @@ func _follow_head(points: Dictionary, saddle: Transform3D) -> void:
 func _follow_stirrups(saddle: Transform3D) -> void:
 	for s in [-1.0, 1.0]:
 		var side := "r" if s > 0.0 else "l"
-		var top := Vector3(s * (_back_width(0.1) + 0.016), -0.1 + _back_rise(-0.06), -0.06)
+		var top := Vector3(s * (_back_width(0.1) + 0.016), -0.1 + _back_rise(-0.06), -0.06) * body_scale
 		var iron: Vector3
 		if rider:
 			iron = saddle.affine_inverse() * _bone_position("ball_" + side) + Vector3(0, -0.01, 0)
 		else:
 			# Run up the leather out of the way, as in a stable.
-			iron = Vector3(s * (_back_width(0.24) + 0.03), -0.24, -0.06)
+			iron = Vector3(s * (_back_width(0.24) + 0.03), -0.24, -0.06) * body_scale
 		_place_strap(_straps["leather_" + side], top, iron + Vector3(0, 0.05, 0), Vector3(s, 0, 0), 0.025, 0.006)
 		var ring: MeshInstance3D = _rings["iron_" + side]
 		ring.transform = Transform3D(Basis(Vector3.RIGHT, Vector3.FORWARD, Vector3.UP), iron)

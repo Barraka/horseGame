@@ -53,6 +53,7 @@ const FOAL_SIZE := 0.55
 const FOAL_BUILD := Vector3(0.8, 1.15, 0.8)
 const FOAL_GROW_HOURS := 6.0
 const FOAL_FEED_GROWTH := 0.04
+const MAX_NAME := 14   ## Letters in a horse's name
 
 ## Coins are earned by riding, jumping and exploring, and spent in the shop.
 const START_COINS := 50
@@ -101,6 +102,7 @@ var bought_tack: Array = []   ## Tack options bought in the shop, as "key:index"
 var results := {}             ## Competition "event:cup" -> best place, 1 to 4 (competitions.gd)
 var quests := {}              ## Quest id -> {"state": "active"/"ready"/"done", "progress": ...} (quests.gd)
 var growth := {}              ## Foal name -> how grown up, 0 to 1
+var names := {}               ## HORSES name -> the name the player gave the horse
 var _coin_metres := 0.0
 var _saved_time := 0.0
 
@@ -132,6 +134,7 @@ func _ready() -> void:
 		quests = config.get_value("quests", "quests", {})
 		results = config.get_value("competitions", "results", {})
 		growth = config.get_value("foals", "growth", {})
+		names = config.get_value("stable", "names", {})
 		if not owns(selected) or not can_ride(selected):
 			selected = 0
 		# Tack already chosen before the shop opened stays the player's.
@@ -154,6 +157,23 @@ func _notification(what: int) -> void:
 
 func current() -> Dictionary:
 	return HORSES[selected]
+
+
+## What a horse is called: the name the player gave it, or its own. (The
+## original name in HORSES stays the key that purchases and growth are
+## saved under.)
+func horse_name(index: int) -> String:
+	return names.get(HORSES[index].name, HORSES[index].name)
+
+
+## Give a horse a new name. An empty name puts back the horse's own.
+func rename(index: int, new_name: String) -> void:
+	new_name = new_name.strip_edges().left(MAX_NAME)
+	if new_name.is_empty() or new_name == HORSES[index].name:
+		names.erase(HORSES[index].name)
+	else:
+		names[HORSES[index].name] = new_name
+	_save()
 
 
 func owns(index: int) -> bool:
@@ -396,4 +416,5 @@ func _save() -> void:
 	config.set_value("quests", "quests", quests)
 	config.set_value("competitions", "results", results)
 	config.set_value("foals", "growth", growth)
+	config.set_value("stable", "names", names)
 	config.save(SAVE_PATH)

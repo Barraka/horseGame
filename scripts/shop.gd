@@ -140,7 +140,7 @@ func _add_row(title: String, kind: String, colors: Array, price: int, owned: boo
 func _preview_horse(index: int) -> void:
 	var horse: Dictionary = Stable.HORSES[index]
 	_stable.preview_horse(index)
-	_message.text = "%s, %s" % [horse.name, horse.coat.to_lower()] if Stable.owns(index) else "%s costs %d coins" % [horse.name, horse.price]
+	_message.text = "%s, %s" % [Stable.horse_name(index), horse.coat.to_lower()] if Stable.owns(index) else "%s costs %d coins" % [horse.name, horse.price]
 
 
 func _preview_tack(key: String, index: int) -> void:
@@ -155,6 +155,7 @@ func _buy_horse(index: int) -> void:
 		_stable.adopt(index)
 		_message.text = "%s is yours and waiting in the stable!" % horse.name
 		_fill()
+		_stable.ask_name(index, true)   # Name your new horse
 	else:
 		_message.text = "You need %d more coins for %s" % [horse.price - Stable.coins, horse.name]
 
