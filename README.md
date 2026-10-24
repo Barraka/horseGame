@@ -37,6 +37,8 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Training:** every horse gets better at what you do with it. Cantering and galloping train **speed** (a faster canter and gallop), jumping trains **jumping** (higher jumps, with extra for clearing a course fence), and riding anywhere trains **stamina** (a longer gallop). Galloping uses up the horse's breath, shown as a blue bar above the gait buttons; when it runs out the horse drops to a canter until it has its breath back. Each skill goes from level 1 to 10, shown under **Training** in the stable. The numbers are at the top of `scripts/stable_data.gd` and `scripts/horse.gd`.
 
+**Bonding:** your horse's hearts (up to five) and mood show under the coins while you ride. Hearts grow with carrots, brushing, pats, rides, quests and tricks. With enough hearts your horse learns tricks: **Bow** at one heart, **Spin** at two and **Rear** at three. Stop, then press the trick's button (or B, N, V). A grumpy horse won't do tricks, so look after it first. Press **Get off** (G) at a halt to walk about with the same keys; your horse grazes and strolls nearby. Press **Whistle** (F) and it trots over to you, then **Get on** (G). The stable panel shows the hearts too, with trick buttons. The numbers are at the top of `scripts/stable_data.gd`.
+
 **Competitions:** Judge Clara stands by the arena with a table of cups. Ride up to her to enter **show jumping** (beat the other riders' rounds on the arena course: fewest faults, then fastest time) or the **trail race** (line up with three other riders, then race 700 m along the trail through the numbered sky blue checkpoints). Each has a Bronze, Silver and Gold cup, with better riders in each. Every place wins a rosette and coins, and winning a cup wins its trophy and opens the next cup. Afterwards Judge Clara tells you how you did, with a tip when you didn't win. The **Trophies** button in the stable shows the cups and rosettes you've won. The riders and prizes are at the top of `scripts/competitions.gd`.
 
 **Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
@@ -89,6 +91,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/world.gd` | Terrain, arena, trail, lake shape, where trees and bushes grow, rocks and wildflowers |
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
 | `scripts/sky_cycle.gd`, `shaders/sky.gdshader` | Day and night (a day lasts 12 minutes), sunrise and sunset, moon, stars and fireflies, clouds, rain and rainbows |
+| `scripts/bonding.gd`, `scripts/on_foot.gd`, `scripts/hearts.gd` | Bonding while you ride: hearts and mood, tricks at a halt, getting off to walk and whistling your horse over |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
 | `scripts/explore.gd`, `shaders/water.gdshader`, `shaders/flag.gdshader` | The places to discover (lake, windmill, stone circle and the rest), the lake's water and the lookout's flag |
@@ -97,6 +100,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/follow_camera.gd` | Third-person camera |
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
 | `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
+| `tests/bonding_test.gd` | Automatic test: hearts grow with care, tricks unlock and play, and a whistle brings the horse over |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |

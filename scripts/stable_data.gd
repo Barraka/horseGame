@@ -78,6 +78,26 @@ const PET_AMOUNT := 0.15
 ## for clearing a course fence), stamina from riding any distance. Points
 ## add up to levels 1 to 10; horse.gd turns levels into a faster canter and
 ## gallop, higher jumps and a longer gallop before the horse is out of breath.
+## Bond: how close a horse is to you, from 0 to 100, shown as up to five
+## hearts. It grows with feeding, brushing, pats, rides and quests, and a
+## horse learns a trick once it has enough hearts.
+const BOND_PER_HEART := 15.0
+const MAX_HEARTS := 5
+const START_BOND := 10.0
+const BOND_FEED := 3.0
+const BOND_PET := 1.0          ## Only while the horse still wants pats
+const BOND_BRUSH := 4.0        ## For brushing a horse from all muddy to clean
+const BOND_PER_KM := 2.0
+const BOND_QUEST := 3.0
+const BOND_CALLED := 2.0       ## Came over when you whistled
+const BOND_TRICK := 0.5
+const TRICKS := {
+	"bow":  {"name": "Bow",  "hearts": 1},
+	"spin": {"name": "Spin", "hearts": 2},
+	"rear": {"name": "Rear", "hearts": 3},
+}
+const UNHAPPY := 0.35          ## Below this happiness a horse won't do tricks
+
 const SKILLS := ["speed", "jumping", "stamina"]
 const SKILL_NAMES := {"speed": "Speed", "jumping": "Jumping", "stamina": "Stamina"}
 const LEVEL_POINTS := [0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700]   ## Points needed for each level
@@ -90,6 +110,7 @@ signal care_changed(index: int)
 signal coins_changed(coins: int, gained: int)
 signal level_up(index: int, skill: String, level: int)
 signal grown_up(index: int)
+signal bond_changed(index: int, new_heart: bool)
 
 var selected := 0
 var care: Array[Dictionary] = []
@@ -103,6 +124,7 @@ var results := {}             ## Competition "event:cup" -> best place, 1 to 4 (
 var quests := {}              ## Quest id -> {"state": "active"/"ready"/"done", "progress": ...} (quests.gd)
 var growth := {}              ## Foal name -> how grown up, 0 to 1
 var names := {}               ## HORSES name -> the name the player gave the horse
+var bond: Array[float] = []   ## Each horse's bond, 0 to 100
 var _coin_metres := 0.0
 var _saved_time := 0.0
 
@@ -114,6 +136,7 @@ func _init() -> void:
 		care.append({"food": 0.6, "clean": 0.5, "love": 0.5})
 		tack.append({})
 		training.append({"speed": 0.0, "jumping": 0.0, "stamina": 0.0})
+		bond.append(START_BOND)
 
 
 func _ready() -> void:
@@ -126,6 +149,7 @@ func _ready() -> void:
 			tack[i] = config.get_value("tack", str(i), {})
 			for skill in SKILLS:
 				training[i][skill] = config.get_value("training", "%s_%d" % [skill, i], 0.0)
+			bond[i] = config.get_value("bond", str(i), START_BOND)
 		_saved_time = config.get_value("care", "time", 0.0)
 		discovered = config.get_value("explore", "discovered", [])
 		coins = config.get_value("shop", "coins", START_COINS)
@@ -343,6 +367,7 @@ func discover(id: String) -> bool:
 func feed(index: int) -> bool:
 	if care[index].food > 0.95:
 		return false
+	add_bond(index, BOND_FEED, false)
 	_change(index, "food", FEED_AMOUNT)
 	_change(index, "love", 0.05)
 	if is_foal(index):
@@ -352,10 +377,14 @@ func feed(index: int) -> bool:
 
 ## Brush away `amount` of dirt.
 func brush(index: int, amount: float) -> void:
+	var cleaned := minf(amount, 1.0 - care[index].clean)
+	add_bond(index, cleaned * BOND_BRUSH, false)
 	_change(index, "clean", amount)
 
 
 func pet(index: int) -> void:
+	if care[index].love < 0.95:
+		add_bond(index, BOND_PET, false)
 	_change(index, "love", PET_AMOUNT)
 
 
@@ -363,6 +392,7 @@ func pet(index: int) -> void:
 func ride(index: int, metres: float) -> void:
 	care[index].food = clampf(care[index].food - RIDE_FOOD_PER_KM * metres / 1000.0, 0.0, 1.0)
 	care[index].clean = clampf(care[index].clean - RIDE_DIRT_PER_KM * metres / 1000.0, 0.0, 1.0)
+	add_bond(index, BOND_PER_KM * metres / 1000.0, false)
 	care_changed.emit(index)
 	_coin_metres += metres
 	var earned := int(_coin_metres * COINS_PER_KM / 1000.0)
@@ -371,6 +401,48 @@ func ride(index: int, metres: float) -> void:
 		earn(earned)   # Saves
 	else:
 		_save()
+
+
+## How many hearts (0 to MAX_HEARTS) a horse's bond with you is worth.
+func hearts(index: int) -> int:
+	return mini(int(bond[index] / BOND_PER_HEART), MAX_HEARTS)
+
+
+## How far the horse is towards its next heart, from 0 to 1.
+func heart_progress(index: int) -> float:
+	if hearts(index) >= MAX_HEARTS:
+		return 1.0
+	return fmod(bond[index], BOND_PER_HEART) / BOND_PER_HEART
+
+
+func add_bond(index: int, amount: float, save := true) -> void:
+	var before := hearts(index)
+	bond[index] = clampf(bond[index] + amount, 0.0, 100.0)
+	bond_changed.emit(index, hearts(index) > before)
+	if save:
+		_save()
+
+
+## Whether the horse has learnt a trick (has enough hearts for it).
+func knows_trick(index: int, trick: String) -> bool:
+	return hearts(index) >= TRICKS[trick].hearts
+
+
+## How the horse feels, in a few words, for while you ride.
+func mood(index: int) -> String:
+	var c: Dictionary = care[index]
+	if c.food < 0.25:
+		return "Hungry"
+	if c.clean < 0.25:
+		return "Itchy, needs a brush"
+	if c.love < 0.25:
+		return "Wants a pat"
+	var happy := happiness(index)
+	if happy > 0.85:
+		return "Very happy"
+	if happy > 0.6:
+		return "Happy"
+	return "Calm" if happy >= UNHAPPY else "Grumpy"
 
 
 func _change(index: int, key: String, amount: float) -> void:
@@ -417,4 +489,6 @@ func _save() -> void:
 	config.set_value("competitions", "results", results)
 	config.set_value("foals", "growth", growth)
 	config.set_value("stable", "names", names)
+	for i in HORSES.size():
+		config.set_value("bond", str(i), bond[i])
 	config.save(SAVE_PATH)

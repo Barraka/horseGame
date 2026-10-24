@@ -260,6 +260,7 @@ func _hand_in(quest: Dictionary) -> void:
 	Stable.set_quest(quest.id, "done")
 	for skill in quest.get("train", {}):
 		Stable.train(Stable.selected, skill, quest.train[skill])
+	Stable.add_bond(Stable.selected, Stable.BOND_QUEST, false)
 	Stable.earn(quest.reward)
 	_show_toast("+%d coins!" % quest.reward)
 	var person := _turn_in(quest)
