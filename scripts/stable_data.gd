@@ -9,19 +9,50 @@ const SAVE_PATH := "user://stable.cfg"
 ## keeps the model's original painted coat. A pattern (see coat.gdshader)
 ## adds patches, spots or dapples. Horses with a price are sold in the shop.
 const HORSES := [
-	{"name": "Hazel",    "coat": "Bay",       "body": Color(0.42, 0.2, 0.08),   "points": Color(0.05, 0.04, 0.04), "strength": 1.0},
-	{"name": "Ginger",   "coat": "Chestnut",  "body": Color(0.6, 0.27, 0.1),    "points": Color(0.42, 0.17, 0.07), "strength": 1.0},
-	{"name": "Midnight", "coat": "Black",     "body": Color(0.07, 0.065, 0.07), "points": Color(0.03, 0.03, 0.03), "strength": 1.0},
-	{"name": "Silver",   "coat": "Grey",      "body": Color(0.78, 0.78, 0.78),  "points": Color(0.3, 0.3, 0.32),   "strength": 1.0},
-	{"name": "Honey",    "coat": "Palomino",  "body": Color(0.86, 0.64, 0.33),  "points": Color(0.93, 0.88, 0.74), "strength": 1.0},
-	{"name": "Sandy",    "coat": "Dun",       "body": Color(0.7, 0.55, 0.4),    "points": Color(0.2, 0.15, 0.12),  "strength": 0.0},
-	{"name": "Biscuit",  "coat": "Buckskin",  "body": Color(0.8, 0.6, 0.34),    "points": Color(0.05, 0.04, 0.04), "strength": 1.0, "price": 120},
-	{"name": "Pearl",    "coat": "Cremello",  "body": Color(0.95, 0.89, 0.78),  "points": Color(0.97, 0.93, 0.85), "strength": 1.0, "price": 150},
-	{"name": "Storm",    "coat": "Dapple grey", "body": Color(0.62, 0.62, 0.64), "points": Color(0.18, 0.18, 0.2), "strength": 1.0, "price": 200, "pattern": 3},
-	{"name": "Patches",  "coat": "Bay pinto", "body": Color(0.42, 0.2, 0.08),   "points": Color(0.05, 0.04, 0.04), "strength": 1.0, "price": 250, "pattern": 1},
-	{"name": "Shadow",   "coat": "Black pinto", "body": Color(0.07, 0.065, 0.07), "points": Color(0.03, 0.03, 0.03), "strength": 1.0, "price": 280, "pattern": 1},
-	{"name": "Freckles", "coat": "Appaloosa", "body": Color(0.93, 0.91, 0.87),  "points": Color(0.12, 0.08, 0.06), "strength": 1.0, "price": 320, "pattern": 2, "pattern_color": Color(0.22, 0.12, 0.07)},
+	{"name": "Hazel",    "breed": "Warmblood",     "coat": "Bay",          "body": Color(0.42, 0.2, 0.08),   "points": Color(0.05, 0.04, 0.04), "strength": 1.0},
+	{"name": "Ginger",   "breed": "Thoroughbred",  "coat": "Chestnut",     "body": Color(0.6, 0.27, 0.1),    "points": Color(0.42, 0.17, 0.07), "strength": 1.0},
+	{"name": "Midnight", "breed": "Friesian",      "coat": "Black",        "body": Color(0.07, 0.065, 0.07), "points": Color(0.03, 0.03, 0.03), "strength": 1.0},
+	{"name": "Silver",   "breed": "Arabian",       "coat": "Grey",         "body": Color(0.78, 0.78, 0.78),  "points": Color(0.3, 0.3, 0.32),   "strength": 1.0},
+	{"name": "Honey",    "breed": "Welsh pony",    "coat": "Palomino",     "body": Color(0.86, 0.64, 0.33),  "points": Color(0.93, 0.88, 0.74), "strength": 1.0},
+	{"name": "Sandy",    "breed": "Fjord",         "coat": "Dun",          "body": Color(0.7, 0.55, 0.4),    "points": Color(0.2, 0.15, 0.12),  "strength": 0.0},
+	{"name": "Biscuit",  "breed": "Quarter horse", "coat": "Buckskin",     "body": Color(0.8, 0.6, 0.34),    "points": Color(0.05, 0.04, 0.04), "strength": 1.0, "price": 120},
+	{"name": "Pearl",    "breed": "Akhal-Teke",    "coat": "Cremello",     "body": Color(0.95, 0.89, 0.78),  "points": Color(0.97, 0.93, 0.85), "strength": 1.0, "price": 150},
+	{"name": "Storm",    "breed": "Andalusian",    "coat": "Dapple grey",  "body": Color(0.62, 0.62, 0.64), "points": Color(0.18, 0.18, 0.2), "strength": 1.0, "price": 200, "pattern": 3},
+	{"name": "Patches",  "breed": "Paint horse",   "coat": "Bay pinto",    "body": Color(0.42, 0.2, 0.08),   "points": Color(0.05, 0.04, 0.04), "strength": 1.0, "price": 250, "pattern": 1},
+	{"name": "Shadow",   "breed": "Gypsy cob",     "coat": "Black pinto",  "body": Color(0.07, 0.065, 0.07), "points": Color(0.03, 0.03, 0.03), "strength": 1.0, "price": 280, "pattern": 1},
+	{"name": "Freckles", "breed": "Appaloosa",     "coat": "Appaloosa",    "body": Color(0.93, 0.91, 0.87),  "points": Color(0.12, 0.08, 0.06), "strength": 1.0, "price": 320, "pattern": 2, "pattern_color": Color(0.22, 0.12, 0.07)},
+	# Foals: too young to ride, they grow up in the stable (see growth below).
+	{"name": "Daisy",    "breed": "Welsh pony",    "coat": "Chestnut",     "body": Color(0.66, 0.3, 0.11), "points": Color(0.85, 0.7, 0.45), "strength": 1.0, "price": 90, "foal": true},
+	{"name": "Pebble",   "breed": "Fjord",         "coat": "Dun",          "body": Color(0.7, 0.55, 0.4),    "points": Color(0.2, 0.15, 0.12),  "strength": 0.0, "price": 100, "foal": true},
+	{"name": "Comet",    "breed": "Arabian",       "coat": "Bay",          "body": Color(0.46, 0.22, 0.09),  "points": Color(0.05, 0.04, 0.04), "strength": 1.0, "price": 120, "foal": true},
 ]
+
+## Breeds: each is the same horse model drawn at its own size and build.
+## size scales the whole horse; build stretches it in width, height and
+## length on top of that (a stocky cob is wide, a racehorse long and slim).
+const BREEDS := {
+	"Warmblood":     {"size": 1.0,  "build": Vector3(1.0, 1.0, 1.0),    "about": "A sporty jumper from Germany"},
+	"Thoroughbred":  {"size": 1.03, "build": Vector3(0.9, 1.04, 1.05),  "about": "The fastest racehorse there is"},
+	"Friesian":      {"size": 1.05, "build": Vector3(1.1, 1.03, 0.98),  "about": "A proud black horse from the Netherlands"},
+	"Arabian":       {"size": 0.94, "build": Vector3(0.92, 1.0, 0.95),  "about": "An old desert breed that can run all day"},
+	"Welsh pony":    {"size": 0.8,  "build": Vector3(1.1, 0.93, 0.92),  "about": "A clever, brave little pony from Wales"},
+	"Fjord":         {"size": 0.86, "build": Vector3(1.18, 0.92, 0.94), "about": "A strong, friendly horse from Norway"},
+	"Quarter horse": {"size": 0.97, "build": Vector3(1.08, 0.97, 0.96), "about": "A cowboy's horse, quick off the mark"},
+	"Akhal-Teke":    {"size": 1.0,  "build": Vector3(0.86, 1.05, 1.06), "about": "A slim horse with a shining golden coat"},
+	"Andalusian":    {"size": 1.0,  "build": Vector3(1.05, 1.0, 0.97),  "about": "A graceful dancer from Spain"},
+	"Paint horse":   {"size": 0.97, "build": Vector3(1.08, 0.97, 0.96), "about": "An American horse with patches of colour"},
+	"Gypsy cob":     {"size": 0.92, "build": Vector3(1.22, 0.94, 0.93), "about": "A gentle, sturdy horse with lots of hair"},
+	"Appaloosa":     {"size": 0.98, "build": Vector3(1.0, 1.0, 0.98),   "about": "A spotted horse from America"},
+}
+
+## A foal is small, with long legs and a short body, and grows into its
+## breed's size. It grows over FOAL_GROW_HOURS of real time (also while the
+## game is closed), at half speed while it isn't well looked after, and
+## each carrot helps it along. Once grown up it can be ridden.
+const FOAL_SIZE := 0.55
+const FOAL_BUILD := Vector3(0.8, 1.15, 0.8)
+const FOAL_GROW_HOURS := 6.0
+const FOAL_FEED_GROWTH := 0.04
 
 ## Coins are earned by riding, jumping and exploring, and spent in the shop.
 const START_COINS := 50
@@ -57,6 +88,7 @@ const CLEAR_FENCE_POINTS := 10   ## Extra, for a course fence jumped clear
 signal care_changed(index: int)
 signal coins_changed(coins: int, gained: int)
 signal level_up(index: int, skill: String, level: int)
+signal grown_up(index: int)
 
 var selected := 0
 var care: Array[Dictionary] = []
@@ -68,6 +100,7 @@ var bought: Array = []        ## Names of horses bought in the shop
 var bought_tack: Array = []   ## Tack options bought in the shop, as "key:index"
 var results := {}             ## Competition "event:cup" -> best place, 1 to 4 (competitions.gd)
 var quests := {}              ## Quest id -> {"state": "active"/"ready"/"done", "progress": ...} (quests.gd)
+var growth := {}              ## Foal name -> how grown up, 0 to 1
 var _coin_metres := 0.0
 var _saved_time := 0.0
 
@@ -98,7 +131,8 @@ func _ready() -> void:
 		bought_tack = config.get_value("shop", "tack", [])
 		quests = config.get_value("quests", "quests", {})
 		results = config.get_value("competitions", "results", {})
-		if not owns(selected):
+		growth = config.get_value("foals", "growth", {})
+		if not owns(selected) or not can_ride(selected):
 			selected = 0
 		# Tack already chosen before the shop opened stays the player's.
 		var options: Dictionary = preload("res://scripts/tack.gd").OPTIONS
@@ -157,6 +191,34 @@ func buy_horse(index: int) -> bool:
 	return true
 
 
+## Whether a horse is old enough to ride.
+func can_ride(index: int) -> bool:
+	return not is_foal(index)
+
+
+## A foal that hasn't grown up yet.
+func is_foal(index: int) -> bool:
+	return HORSES[index].get("foal", false) and grown(index) < 1.0
+
+
+## How grown up a horse is, from 0 (newborn foal) to 1.
+func grown(index: int) -> float:
+	return growth.get(HORSES[index].name, 0.0) if HORSES[index].get("foal", false) else 1.0
+
+
+## How big the horse is drawn, as a scale in width, height and length: its
+## breed's size and build, or a foal's somewhere on the way to it.
+func body_shape(index: int) -> Vector3:
+	return breed_shape(HORSES[index].breed, grown(index))
+
+
+## The size and build of a horse of `breed` that is `grown` grown up.
+func breed_shape(breed_name: String, grown_up := 1.0) -> Vector3:
+	var breed: Dictionary = BREEDS[breed_name]
+	var adult: Vector3 = breed.build * breed.size
+	return (FOAL_BUILD * breed.size * FOAL_SIZE).lerp(adult, grown_up * (2.0 - grown_up))   # Grows fastest when young
+
+
 ## Buy a tack option from the shop. Returns false if there aren't enough coins.
 func buy_tack(key: String, index: int, options: Dictionary) -> bool:
 	var price: int = options[key][index].get("price", 0)
@@ -171,6 +233,8 @@ func buy_tack(key: String, index: int, options: Dictionary) -> bool:
 
 func select(index: int) -> void:
 	selected = wrapi(index, 0, HORSES.size())
+	if not can_ride(selected):
+		selected = 0
 	_save()
 
 
@@ -261,6 +325,8 @@ func feed(index: int) -> bool:
 		return false
 	_change(index, "food", FEED_AMOUNT)
 	_change(index, "love", 0.05)
+	if is_foal(index):
+		_grow(index, FOAL_FEED_GROWTH)
 	return true
 
 
@@ -293,7 +359,16 @@ func _change(index: int, key: String, amount: float) -> void:
 	_save()
 
 
+func _grow(index: int, amount: float) -> void:
+	growth[HORSES[index].name] = minf(grown(index) + amount, 1.0)
+	if not is_foal(index):
+		grown_up.emit(index)
+
+
 func _pass_time(hours: float) -> void:
+	for i in care.size():
+		if is_foal(i) and owns(i):
+			_grow(i, hours / FOAL_GROW_HOURS * (1.0 if happiness(i) >= 0.5 else 0.5))
 	for c in care:
 		c.food = maxf(c.food - FOOD_PER_HOUR * hours, 0.0)
 		c.love = maxf(c.love - LOVE_PER_HOUR * hours, 0.0)
@@ -320,4 +395,5 @@ func _save() -> void:
 	config.set_value("shop", "tack", bought_tack)
 	config.set_value("quests", "quests", quests)
 	config.set_value("competitions", "results", results)
+	config.set_value("foals", "growth", growth)
 	config.save(SAVE_PATH)

@@ -57,6 +57,7 @@ func fill_stalls(selected: int) -> void:
 		if not _horses.has(index):
 			_horses[index] = _stable_horse(index, slot)
 		_horses[index].visible = index != selected
+		_horses[index].set_body_shape(Stable.body_shape(index))   # Foals keep growing
 		_horses[index].set_dirt(1.0 - Stable.care[index].clean)
 		var plate: Label3D = get_node_or_null("Plate%d" % slot)
 		if plate:

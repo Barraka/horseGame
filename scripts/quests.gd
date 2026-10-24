@@ -1,7 +1,7 @@
 extends Node3D
 ## People around the countryside who ask for help: jump a clear round,
 ## gather apples, deliver a letter, gallop, pick flowers, find a lost
-## horseshoe. Ride up to someone to talk. A gold "!" above their head means
+## horseshoe; and Coach Anna's riding lessons in the arena. Ride up to someone to talk. A gold "!" above their head means
 ## they have a quest; a "?" means you can collect your reward from them.
 ## Progress is saved with the stable.
 
@@ -10,6 +10,8 @@ const World := preload("res://scripts/world.gd")
 const TALK_DISTANCE := 5.0
 const PICK_DISTANCE := 2.6     ## How close to ride to pick something up
 const GALLOP_GOAL := 500.0     ## Metres for Ben's quest
+const CONE_DISTANCE := 3.5     ## How close to a lesson's cone counts as there
+const GAIT_NAMES := ["halt", "walk", "trot", "canter", "gallop"]
 
 ## The people: where they stand (x, z) and how they look (rider.gd options).
 const PEOPLE := {
@@ -28,13 +30,19 @@ const PEOPLE := {
 	"mia": {"name": "Mia", "pos": Vector2(31, 158),
 		"look": {"body": 0, "skin": 0, "hair": 3, "hair_color": 4, "outfit": 3, "helmet": 0},
 		"chat": "Every flower in this valley is a different colour!"},
+	"anna": {"name": "Coach Anna", "pos": Vector2(-20, 6),
+		"look": {"body": 0, "skin": 2, "hair": 2, "hair_color": 3, "outfit": 1, "helmet": 1},
+		"chat": "You've had all my lessons! Practise in the arena any time."},
 	"sam": {"name": "Old Sam", "pos": Vector2(-60, 140),
 		"look": {"body": 1, "skin": 1, "hair": 4, "hair_color": 0, "outfit": 2, "helmet": 0},
 		"chat": "These stones have stood here longer than anyone remembers."},
 }
 
 ## The quests. "giver" offers it, "turn_in" (the giver unless given) hands
-## out the reward. "needs" is a quest that must be finished first.
+## out the reward. "needs" is a quest that must be finished first. A lesson
+## is a list of steps done in order: ride to a blue cone ("at", x and z) in
+## a gait ("gait", or faster unless "exact"), or jump a number of times in
+## the arena ("jumps"). "train" adds training points to the horse ridden.
 const QUESTS := [
 	{"id": "clear_round", "giver": "lily", "reward": 50, "kind": "clear_round",
 		"ask": "Hi! I teach jumping here. Can you jump a clear round in the arena, with no poles down?",
@@ -60,6 +68,37 @@ const QUESTS := [
 		"ask": "Long ago I lost a golden horseshoe up at the Hilltop Lookout. Could you look for it?",
 		"goal": "Find the golden horseshoe at the Hilltop Lookout",
 		"thanks": "My golden horseshoe! I never thought I'd see it again."},
+	{"id": "lesson_1", "giver": "anna", "reward": 30, "kind": "lesson", "train": {"stamina": 80},
+		"ask": "Hello, I'm Coach Anna! Would you like a riding lesson? Today we'll walk, trot and halt in the arena. Follow the blue cones.",
+		"goal": "Lesson 1",
+		"thanks": "Lovely! Nice and steady, and a square halt at the end.",
+		"steps": [
+			{"text": "Walk to the blue cone", "at": Vector2(-23, -10), "gait": 1, "exact": true},
+			{"text": "Trot down the long side", "at": Vector2(-23, -60), "gait": 2},
+			{"text": "Keep trotting across the end", "at": Vector2(23, -60), "gait": 2},
+			{"text": "Back to a walk", "at": Vector2(23, -32), "gait": 1, "exact": true},
+			{"text": "Halt at the last cone", "at": Vector2(23, -10), "gait": 0, "exact": true},
+		]},
+	{"id": "lesson_2", "giver": "anna", "needs": "lesson_1", "reward": 40, "kind": "lesson", "train": {"speed": 120},
+		"ask": "Ready for your next lesson? Today you'll canter. Left-click (or press 3) to go up to a canter.",
+		"goal": "Lesson 2",
+		"thanks": "What a lovely canter! You're a natural.",
+		"steps": [
+			{"text": "Trot to the blue cone", "at": Vector2(-23, -10), "gait": 2, "exact": true},
+			{"text": "Canter down the long side", "at": Vector2(-23, -62), "gait": 3},
+			{"text": "Keep cantering across the end", "at": Vector2(23, -62), "gait": 3},
+			{"text": "Back to a trot", "at": Vector2(23, -32), "gait": 2, "exact": true},
+			{"text": "Halt at the last cone", "at": Vector2(23, -10), "gait": 0, "exact": true},
+		]},
+	{"id": "lesson_3", "giver": "anna", "needs": "lesson_2", "reward": 50, "kind": "lesson", "train": {"jumping": 120},
+		"ask": "Now for the fun part: jumping! Trot or canter at a fence and press Space just before it.",
+		"goal": "Lesson 3",
+		"thanks": "Brilliant jumping! You're ready for Lily's clear round and Judge Clara's cups.",
+		"steps": [
+			{"text": "Trot to the blue cone", "at": Vector2(-23, -10), "gait": 2},
+			{"text": "Jump 3 times in the arena", "jumps": 3},
+			{"text": "Halt at the blue cone", "at": Vector2(-14, -8), "gait": 0, "exact": true},
+		]},
 ]
 
 @export var world_path: NodePath
@@ -83,6 +122,9 @@ var _buttons: HBoxContainer
 var _tracker: Label
 var _toast: Label
 var _toast_tween: Tween
+var _cone: Node3D           ## Where the lesson goes next
+var _was_jumping := false
+var _hinted := -1           ## The lesson step last given a gait hint
 
 
 func _ready() -> void:
@@ -97,6 +139,8 @@ func _ready() -> void:
 	for quest in QUESTS:
 		if quest.kind == "collect":
 			_build_items(quest)
+	_cone = _make_cone()
+	add_child(_cone)
 	_build_ui()
 	_refresh()
 
@@ -115,6 +159,13 @@ func _process(delta: float) -> void:
 		else:
 			Stable.quests.gallop.progress = done
 			_update_tracker()
+
+	# Riding lessons.
+	for quest in QUESTS:
+		if quest.kind == "lesson" and Stable.quest_state(quest.id) == "active":
+			_lesson(quest, at)
+	_was_jumping = _horse.jumping
+	_cone.rotation.y += delta
 
 	# Things to pick up.
 	for id in _items:
@@ -188,6 +239,7 @@ func _accept(quest: Dictionary) -> void:
 	match quest.kind:
 		"collect": progress = []
 		"gallop": progress = 0.0
+		"lesson": progress = {"step": 0, "count": 0}
 	if quest.kind == "deliver":
 		Stable.set_quest(quest.id, "ready")
 	else:
@@ -206,6 +258,8 @@ func _ready_to_hand_in(quest: Dictionary) -> void:
 
 func _hand_in(quest: Dictionary) -> void:
 	Stable.set_quest(quest.id, "done")
+	for skill in quest.get("train", {}):
+		Stable.train(Stable.selected, skill, quest.train[skill])
 	Stable.earn(quest.reward)
 	_show_toast("+%d coins!" % quest.reward)
 	var person := _turn_in(quest)
@@ -232,6 +286,37 @@ func _pick_up(quest: Dictionary, index: int) -> void:
 		_update_tracker()
 
 
+## Check the lesson's current step: at the cone in the right gait, or
+## another jump in the arena.
+func _lesson(quest: Dictionary, at: Vector3) -> void:
+	var progress: Dictionary = Stable.quests[quest.id].progress
+	var step: Dictionary = quest.steps[progress.step]
+	var done := false
+	if step.has("jumps"):
+		if _horse.jumping and not _was_jumping and _world.is_in_arena(at.x, at.z):
+			progress.count += 1
+			if progress.count < step.jumps:
+				_show_toast("Jump %d of %d!" % [progress.count, step.jumps])
+				_update_tracker()
+			done = progress.count >= step.jumps
+	elif Vector2(at.x - step.at.x, at.z - step.at.y).length() < CONE_DISTANCE:
+		var gait: int = _horse.current_gait
+		done = gait == step.gait if step.get("exact", false) else gait >= step.gait
+		if not done and _hinted != progress.step and (step.gait > 0 or gait > 1):
+			# Riding past at the wrong pace: say what Anna wants to see.
+			_hinted = progress.step
+			_show_toast("Coach Anna: " + ("Now halt!" if step.gait == 0 else "Show me a %s!" % GAIT_NAMES[step.gait]))
+	if not done:
+		return
+	if progress.step + 1 >= quest.steps.size():
+		_ready_to_hand_in(quest)
+		return
+	Stable.set_quest(quest.id, "active", {"step": progress.step + 1, "count": 0})
+	_hinted = -1
+	_show_toast(["Good!", "Well done!", "Lovely!", "That's it!"][progress.step % 4])
+	_refresh()
+
+
 func _on_course_finished(_time_taken: float, faults: int) -> void:
 	if faults == 0 and Stable.quest_state("clear_round") == "active":
 		_ready_to_hand_in(_quest("clear_round"))
@@ -247,6 +332,13 @@ func _refresh() -> void:
 		marker.text = "?" if state == "ready" else "!"
 		if topic.is_empty():
 			marker.visible = false
+	_cone.visible = false
+	for quest in QUESTS:
+		if quest.kind == "lesson" and Stable.quest_state(quest.id) == "active":
+			var step: Dictionary = quest.steps[Stable.quests[quest.id].progress.step]
+			_cone.visible = step.has("at")
+			if step.has("at"):
+				_cone.position = _ground(step.at)
 	for id in _items:
 		var active := Stable.quest_state(id) == "active"
 		var taken: Array = Stable.quests[id].progress if active else []
@@ -267,6 +359,12 @@ func _update_tracker() -> void:
 					line += " (%d of %d)" % [Stable.quests[quest.id].progress.size(), quest.count]
 				elif quest.kind == "gallop":
 					line += " (%d m)" % int(Stable.quests[quest.id].progress)
+				elif quest.kind == "lesson":
+					var progress: Dictionary = Stable.quests[quest.id].progress
+					var step: Dictionary = quest.steps[progress.step]
+					line += ": " + step.text
+					if step.has("jumps"):
+						line += " (%d of %d)" % [progress.count, step.jumps]
 				lines.append(line)
 			"ready":
 				if quest.kind == "deliver":
@@ -490,6 +588,70 @@ func _make_item(kind: String) -> Node3D:
 	light.omni_range = 2.5
 	item.add_child(light)
 	return item
+
+
+## A sky blue cone with a ring round it on the ground and a beam above, for
+## the lessons (gold is for places to find and quest things).
+func _make_cone() -> Node3D:
+	var cone := Node3D.new()
+	cone.name = "LessonCone"
+	var blue := StandardMaterial3D.new()
+	blue.albedo_color = Color(0.08, 0.4, 0.95)
+	blue.emission_enabled = true
+	blue.emission = Color(0.08, 0.4, 0.95)
+	blue.emission_energy_multiplier = 0.25
+	var body := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.04
+	mesh.bottom_radius = 0.28
+	mesh.height = 0.75
+	body.mesh = mesh
+	body.material_override = blue
+	body.position.y = 0.375
+	cone.add_child(body)
+	var stripe := MeshInstance3D.new()
+	var band := CylinderMesh.new()
+	band.top_radius = 0.17
+	band.bottom_radius = 0.21
+	band.height = 0.12
+	stripe.mesh = band
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(1, 1, 1)
+	stripe.material_override = white
+	stripe.position.y = 0.4
+	cone.add_child(stripe)
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = CONE_DISTANCE - 0.12
+	torus.outer_radius = CONE_DISTANCE
+	torus.rings = 48
+	ring.mesh = torus
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = Color(0.2, 0.6, 1.0)
+	ring.material_override = glow
+	ring.scale.y = 0.3
+	ring.position.y = 0.05
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cone.add_child(ring)
+	var beam_mat := StandardMaterial3D.new()
+	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	beam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	beam_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	beam_mat.albedo_color = Color(0.4, 0.75, 1.0, 0.3)
+	var beam := MeshInstance3D.new()
+	var tube := CylinderMesh.new()
+	tube.top_radius = 0.06
+	tube.bottom_radius = 0.14
+	tube.height = 8.0
+	tube.radial_segments = 8
+	beam.mesh = tube
+	beam.material_override = beam_mat
+	beam.position.y = 4.0
+	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cone.add_child(beam)
+	cone.visible = false
+	return cone
 
 
 func _build_ui() -> void:

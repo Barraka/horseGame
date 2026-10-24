@@ -1,6 +1,7 @@
 extends SceneTree
 ## Plays every quest: talks to each person, accepts their quest, does it
-## (jumps a clear round, picks things up, delivers the letter, gallops),
+## (jumps a clear round, picks things up, delivers the letter, gallops,
+## rides Coach Anna's lessons),
 ## goes back for the reward, and checks the coins add up. Puts the saved
 ## quests and coins back afterwards. Run with:
 ## godot --headless --path . -s tests/quest_test.gd
@@ -51,7 +52,8 @@ func _process(_delta: float) -> bool:
 		quests = main.get_node("Quests")
 		horse = main.get_node("Horse")
 		horse.set_physics_process(false)
-		saved = {"quests": stable.quests.duplicate(true), "coins": stable.coins, "discovered": stable.discovered.duplicate()}
+		saved = {"quests": stable.quests.duplicate(true), "coins": stable.coins, "discovered": stable.discovered.duplicate(),
+			"training": stable.training[stable.selected].duplicate()}
 		stable.quests.clear()
 		# Count only quest rewards, not coins for finding places on the way.
 		for place in main.get_node("World").PLACES:
@@ -68,8 +70,9 @@ func _process(_delta: float) -> bool:
 	if steps.is_empty():
 		_check("All quests done", stable.quests.size() == quests.QUESTS.size()
 			and stable.quests.values().all(func(q): return q.state == "done"))
-		_check("Rewards add up to 270 coins", stable.coins - saved.coins == 270)
+		_check("Rewards add up to 390 coins", stable.coins - saved.coins == 390)
 		stable.quests = saved.quests
+		stable.training[stable.selected] = saved.training
 		stable.coins = saved.coins
 		stable.discovered = saved.discovered
 		stable.select(stable.selected)   # Save them back
@@ -109,6 +112,42 @@ func _plan(stable: Node) -> void:
 	steps.append(func(): _check("Galloped 500 m", stable.quest_state("gallop") == "ready"))
 	steps.append(_go_to_person.bind("ben"))
 	steps.append(_press)
+	# Coach Anna's lessons, one after the other.
+	for lesson in ["lesson_1", "lesson_2", "lesson_3"]:
+		steps.append(_go.bind(Vector2(0, 30)))
+		steps.append(_go_to_person.bind("anna"))
+		steps.append(_press)
+		steps.append(func(): _check("%s started" % lesson, stable.quest_state(lesson) == "active"))
+		steps.append(_ride_lesson.bind(lesson))
+		steps.append(func(): _check("%s ridden" % lesson, stable.quest_state(lesson) == "ready"))
+		steps.append(_go_to_person.bind("anna"))
+		steps.append(_press)
+	steps.append(func(): _check("Lessons trained the horse", stable.training[stable.selected].jumping >= saved.training.jumping + 120))
+
+
+## Ride each step of a lesson: to each cone in its gait, or jump in the arena.
+func _ride_lesson(id: String) -> void:
+	var visits: Array[Callable] = []
+	for step in quests._quest(id).steps:
+		if step.has("at"):
+			# Arriving in the wrong gait only gets a hint; then the right one.
+			visits.append(func():
+				horse.current_gait = 4 if step.get("exact", false) else step.gait - 1
+				_go(step.at))
+			visits.append(func():
+				horse.current_gait = step.gait
+				wait = 2)
+		else:
+			visits.append(func(): _go(Vector2(-10, -30)))
+			for k in step.jumps:
+				visits.append(func():
+					horse.jumping = true
+					wait = 1)
+				visits.append(func():
+					horse.jumping = false
+					wait = 1)
+	visits.append(func(): horse.current_gait = 0)
+	steps = visits + steps
 
 
 ## Visit each of a quest's things in turn (as extra steps, run next).

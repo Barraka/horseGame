@@ -294,6 +294,7 @@ func _start_race() -> void:
 		add_child(rival)
 		rival.set_physics_process(false)   # Moved along the trail below, not ridden
 		rival.show_coat(Stable.HORSES[info.coat])
+		rival.set_body_shape(Stable.body_shape(info.coat))
 		rival.set_tack(rival.tack)
 		rival.set_dirt(0.0)
 		_race.rivals.append({"horse": rival, "along": 0.0, "speed": 0.0, "lane": LANES[k],
