@@ -61,7 +61,7 @@ func _grass_ok(world: Node3D) -> bool:
 		for i in mm.instance_count:
 			var p := mm.get_instance_transform(i).origin
 			tufts += 1
-			if world.is_in_arena(p.x, p.z) or world.is_in_lake(p.x, p.z, -1.0) or world.trail_at(p.x, p.z) > 0.5:
+			if world.is_in_arena(p.x, p.z) or world.is_in_lake(p.x, p.z, -1.0) or world.trail_at(p.x, p.z) > 0.5 or world.is_beach(p.x, p.z, -2.0):
 				misplaced += 1
 	print("grass: %d squares, %d tufts, %d in the wrong place" % [squares.size(), tufts, misplaced])
 	return squares.size() > 100 and tufts > 50000 and misplaced == 0
@@ -77,7 +77,8 @@ func _trees_ok(world: Node3D) -> bool:
 		kinds[String(node.name).trim_prefix("Trees_").get_slice(":", 0).rsplit("_", true, 3)[0]] = true
 		for i in mm.instance_count:
 			var p := mm.get_instance_transform(i).origin
-			if world.is_in_arena(p.x, p.z) or world.is_in_lake(p.x, p.z, 2.0):
+			if world.is_in_arena(p.x, p.z) or world.is_in_lake(p.x, p.z, 2.0) or world.is_beach(p.x, p.z):
 				misplaced += 1
 	print("trees: kinds %s, %d in the wrong place" % [kinds.keys(), misplaced])
-	return kinds.size() == world.Trees.KINDS.size() + 1 and kinds.has("rock") and misplaced == 0
+	# Every kind but palms (they grow on the beach, see beach.gd), and rocks.
+	return kinds.size() == world.Trees.KINDS.size() and kinds.has("rock") and not kinds.has("palm") and misplaced == 0

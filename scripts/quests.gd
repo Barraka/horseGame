@@ -1,7 +1,8 @@
 extends Node3D
 ## People around the countryside who ask for help: jump a clear round,
 ## gather apples, deliver a letter, gallop, pick flowers, find a lost
-## horseshoe; and Coach Anna's riding lessons in the arena. Ride up to someone to talk. A gold "!" above their head means
+## horseshoe, gather seashells, find the lighthouse keeper's spyglass; and
+## Coach Anna's riding lessons in the arena. Ride up to someone to talk. A gold "!" above their head means
 ## they have a quest; a "?" means you can collect your reward from them.
 ## Progress is saved with the stable.
 
@@ -36,6 +37,12 @@ const PEOPLE := {
 	"sam": {"name": "Old Sam", "pos": Vector2(-60, 140),
 		"look": {"body": 1, "skin": 1, "hair": 4, "hair_color": 0, "outfit": 2, "helmet": 0},
 		"chat": "These stones have stood here longer than anyone remembers."},
+	"marina": {"name": "Marina", "pos": Vector2(176, -28),
+		"look": {"body": 0, "skin": 2, "hair": 0, "hair_color": 3, "outfit": 3, "helmet": 0},
+		"chat": "Listen to the waves! I could stay at the beach all day."},
+	"finn": {"name": "Keeper Finn", "pos": Vector2(178, -142),
+		"look": {"body": 1, "skin": 1, "hair": 5, "hair_color": 2, "outfit": 2, "helmet": 0},
+		"chat": "My light keeps the ships safe at night. Come and see it shine!"},
 }
 
 ## The quests. "giver" offers it, "turn_in" (the giver unless given) hands
@@ -68,6 +75,14 @@ const QUESTS := [
 		"ask": "Long ago I lost a golden horseshoe up at the Hilltop Lookout. Could you look for it?",
 		"goal": "Find the golden horseshoe at the Hilltop Lookout",
 		"thanks": "My golden horseshoe! I never thought I'd see it again."},
+	{"id": "shells", "giver": "marina", "reward": 45, "kind": "collect", "item": "shell", "count": 6,
+		"ask": "I'm making a seashell necklace! Could you find 6 pretty shells along the beach for me?",
+		"goal": "Find seashells on the beach",
+		"thanks": "They're perfect! The pink one is my favourite."},
+	{"id": "spyglass", "giver": "finn", "reward": 55, "kind": "collect", "item": "spyglass", "count": 1,
+		"ask": "Oh no, I dropped my spyglass when I was looking at the old shipwreck! Could you ride out and find it?",
+		"goal": "Find Finn's spyglass by the Old Shipwreck",
+		"thanks": "My spyglass! Now I can watch the ships again. Thank you!"},
 	{"id": "lesson_1", "giver": "anna", "reward": 30, "kind": "lesson", "train": {"stamina": 80},
 		"ask": "Hello, I'm Coach Anna! Would you like a riding lesson? Today we'll walk, trot and halt in the arena. Follow the blue cones.",
 		"goal": "Lesson 1",
@@ -483,6 +498,13 @@ func _item_spots(quest: Dictionary) -> Array[Vector2]:
 				spots.append(centre + Vector2(cos(angle), sin(angle)) * (11.0 + 5.0 * (k % 2)))
 		"horseshoe":
 			spots.append(World.PLACES[4].pos + Vector2(5, -4))
+		"shell":
+			# Along the water's edge, north and south of the cove.
+			for k in quest.count:
+				var z: float = PEOPLE.marina.pos.y + (k - quest.count / 2.0 + 0.5) * 22.0
+				spots.append(Vector2(World.coast_x(z) - 3.0 - 2.0 * (k % 2), z))
+		"spyglass":
+			spots.append(World.PLACES[7].pos + Vector2(-9.0, -5.0))
 	return spots
 
 
@@ -566,6 +588,23 @@ func _make_item(kind: String) -> Node3D:
 			shoe.rotation.x = PI / 2
 			shoe.scale = Vector3(1.0, 1.0, 1.25)
 			item.add_child(shoe)
+		"shell":
+			item.add_child(preload("res://scripts/beach.gd").make_shell([Color(1.0, 0.7, 0.75), Color(1.0, 0.85, 0.6), Color(0.85, 0.75, 1.0)][randi() % 3]))
+			item.scale = Vector3.ONE * 1.6
+		"spyglass":
+			var brass: StandardMaterial3D = glow.call(Color(0.9, 0.7, 0.3), 0.6)
+			brass.metallic = 0.9
+			for k in 3:
+				var tube := MeshInstance3D.new()
+				var cyl := CylinderMesh.new()
+				cyl.top_radius = 0.05 - k * 0.01
+				cyl.bottom_radius = 0.05 - k * 0.01
+				cyl.height = 0.22
+				tube.mesh = cyl
+				tube.material_override = brass
+				tube.rotation.z = PI / 2
+				tube.position.x = k * 0.18 - 0.18
+				item.add_child(tube)
 	# A thin golden beam and a soft glow, so things can be spotted from a distance.
 	var beam_mat := StandardMaterial3D.new()
 	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
