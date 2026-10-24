@@ -93,6 +93,8 @@ func _physics_process(delta: float) -> void:
 			announce.emit("Finished in %.1f s with %d faults\n+%d coins" % [time, faults, prize])
 		if stable:
 			stable.earn(prize)
+			if faults == 0:
+				stable.note("clear_round")
 		finished.emit(time, faults)
 	_update_status()
 

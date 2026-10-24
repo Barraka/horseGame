@@ -17,6 +17,7 @@ Stable="*res://scripts/stable_data.gd"
 RiderData="*res://scripts/rider_data.gd"
 Settings="*res://scripts/settings.gd"
 Sound="*res://scripts/sound.gd"
+Daily="*res://scripts/daily.gd"
 
 [display]
 
