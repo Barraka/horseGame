@@ -20,6 +20,7 @@ var _index := 0
 var _horse: Node3D
 var _care: Node3D
 var _tack: Node
+var _salon: Node   ## The grooming salon (another tack_panel.gd)
 var _shop: Node
 var _trophies: Node
 var _daily: Node
@@ -94,6 +95,7 @@ func _show_horse() -> void:
 	_horse.set_dirt(1.0 - Stable.care[_index].clean)
 	_care.show_horse(_index)
 	_tack.show_horse(_index)
+	_salon.show_horse(_index)
 	_barn.fill_stalls(_index)
 	var owned: Array[int] = Stable.owned_horses()
 	for i in _dots.get_child_count():
@@ -356,6 +358,12 @@ func _build_ui() -> void:
 	_tack = TackPanel.new()
 	add_child(_tack)
 	_tack.setup(_horse, root)
+	_salon = TackPanel.new()
+	_salon.rows = TackPanel.SALON_ROWS
+	_salon.title = "Salon"
+	_salon.button_y = 280.0
+	add_child(_salon)
+	_salon.setup(_horse, root)
 	_shop = Shop.new()
 	add_child(_shop)
 	_shop.setup(self, root)
@@ -368,18 +376,29 @@ func _build_ui() -> void:
 	_daily.setup(root)
 	_tack.opened.connect(func():
 		_shop.close()
+		_salon.close()
 		_trophies.close()
 		_daily.close())
+	_salon.opened.connect(func():
+		_shop.close()
+		_tack.close()
+		_trophies.close()
+		_daily.close()
+		_picker.visible = false)   # The salon reaches down over the horse picker
+	_salon.closed.connect(func(): _picker.visible = not _shop.is_open())
 	_trophies.opened.connect(func():
 		_shop.close()
+		_salon.close()
 		_tack.close()
 		_daily.close())
 	_daily.opened.connect(func():
 		_shop.close()
+		_salon.close()
 		_tack.close()
 		_trophies.close())
 	_shop.opened.connect(func():
 		_tack.close()
+		_salon.close()
 		_trophies.close()
 		_daily.close()
 		_care.set_panel_visible(false)
