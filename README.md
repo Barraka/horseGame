@@ -33,6 +33,8 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Breeds and foals:** every horse has a breed (warmblood, Welsh pony, Fjord, Friesian, Arabian, Gypsy cob and more), drawn at that breed's size and build: ponies are small and stocky, thoroughbreds tall and slim. The shop also sells foals. A foal can't be ridden yet: it grows a little bigger every hour (also while the game is closed, and faster when it's well looked after), each carrot helps, and after about six hours it's grown up and ready to ride. Breeds are listed in `scripts/stable_data.gd`.
 
+**Sounds and music:** a gentle harp tune plays throughout. While you ride you hear hoofbeats in time with the horse's legs (soft on grass, clopping on the trail, hushed in the arena sand, splashing in the lake), snorts and whinnies, and the thump of landing a jump. Around you there's wind, birdsong by day, crickets at night rain when it rains and waves by the sea. In the stable a carrot crunches and your horse nickers when you pat it. Every sound and the music are made from scratch by `tools/make_sounds.py` (run it with Python to remake them), so there are no recordings to credit.
+
 **The beach:** follow the path that branches east off the trail down to the sea. Waves wash up the sand and foam rolls in, palms lean over the dunes and seagulls circle overhead. Three new places to find: **Seashell Cove** (a rock pool, a beach hut and shells everywhere), the **Old Shipwreck** lying in the shallows, and **Lighthouse Point**, whose lamp sweeps round at night. Marina at the cove wants 6 seashells from along the water's edge, and Keeper Finn by the lighthouse lost his spyglass near the wreck. The beach's shape is `coast_x()` in `scripts/world.gd`.
 
 **Quests:** six people around the countryside need help. Ride up to someone to talk: a gold **!** above their head means they have a quest, and a **?** means your reward is waiting. Lily by the arena wants a clear round, Farmer Tom at the windmill has lost some apples, Rosa at the lake has a letter for Ben at the Wild Horse Meadow (who then wants a gallop), Mia in Flower Valley wants flowers, and Old Sam at the Stone Circle lost a golden horseshoe. On the beach, Marina wants seashells and Keeper Finn has lost his spyglass. Coach Anna by the arena gives three riding lessons (walk, trot and halt; canter; jumping): follow the blue cones in the gait she asks for. Your quests are listed at the top right. People and quests are listed at the top of `scripts/quests.gd`.
@@ -97,6 +99,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/sky_cycle.gd`, `shaders/sky.gdshader` | Day and night (a day lasts 12 minutes), sunrise and sunset, moon, stars and fireflies, clouds, rain and rainbows |
 | `scripts/beach.gd`, `shaders/sea.gdshader` | The beach: the sea and its waves, palms, rocks and driftwood, Seashell Cove, the Old Shipwreck, Lighthouse Point and seagulls |
 | `scripts/bonding.gd`, `scripts/on_foot.gd`, `scripts/hearts.gd` | Bonding while you ride: hearts and mood, tricks at a halt, getting off to walk and whistling your horse over |
+| `scripts/sound.gd`, `scripts/ambience.gd`, `assets/audio/`, `tools/make_sounds.py` | Music and sounds: the Sound autoload plays them, the Ambience node does hoofbeats and outdoor sounds while riding, and the tool makes the sound files |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
 | `scripts/explore.gd`, `shaders/water.gdshader`, `shaders/flag.gdshader` | The places to discover (lake, windmill, stone circle and the rest), the lake's water and the lookout's flag |
@@ -106,6 +109,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
 | `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
 | `tests/bonding_test.gd` | Automatic test: hearts grow with care, tricks unlock and play, and a whistle brings the horse over |
+| `tests/sound_test.gd` | Automatic test: every sound loads, hoofbeats keep time and splash in water, and caring for the horse makes its sounds |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |
