@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://scripts/horse.gd" id="2_horse"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://scripts/explore.gd" id="9_explore"]
 [ext_resource type="Script" path="res://scripts/quests.gd" id="10_quests"]
 [ext_resource type="Script" path="res://scripts/competitions.gd" id="11_competitions"]
+[ext_resource type="Script" path="res://scripts/sky_cycle.gd" id="12_sky"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.22, 0.47, 0.88, 1)
@@ -66,6 +67,11 @@ light_energy = 1.35
 shadow_blur = 1.5
 shadow_enabled = true
 directional_shadow_max_distance = 80.0
+
+[node name="SkyCycle" type="Node" parent="."]
+script = ExtResource("12_sky")
+sun_path = NodePath("../Sun")
+environment_path = NodePath("../WorldEnvironment")
 
 [node name="World" type="Node3D" parent="."]
 script = ExtResource("1_world")
