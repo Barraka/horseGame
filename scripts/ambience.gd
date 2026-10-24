@@ -92,7 +92,7 @@ func _hooves() -> void:
 ## What the horse is standing on.
 func _surface() -> String:
 	var p: Vector3 = _horse.global_position
-	if _world.is_in_lake(p.x, p.z, -1.0):
+	if _world.is_in_lake(p.x, p.z, -1.0) or ("ponds" in _world and _world.is_in_pond(p.x, p.z)):
 		return "water"
 	if _world.has_method("shore_distance"):
 		var shore: float = _world.shore_distance(p.x, p.z)
