@@ -13,6 +13,8 @@ extends Node3D
 const Rider := preload("res://scripts/rider.gd")
 const Horse := preload("res://scripts/horse.gd")
 const Gate := preload("res://scripts/gate.gd")
+const Portrait := preload("res://scripts/portrait.gd")
+const CHECK_COLOR := Color(0.35, 0.8, 1.0)   ## Race checkpoints are sky blue, unlike the golden places to find
 const TALK_DISTANCE := 5.0
 
 const JUDGE := {"name": "Judge Clara", "pos": Vector2(12, 7),
@@ -92,6 +94,8 @@ var _big: Label
 var _results: PanelContainer
 var _results_text: Label
 var _results_title: Label
+var _results_words: Label   ## What Judge Clara says about how it went
+var _results_ok: Button
 
 
 func _ready() -> void:
@@ -191,11 +195,14 @@ func _on_course_finished(time: float, faults: int) -> void:
 			place = i + 1
 		var faults_text: String = "clear" if e.faults == 0 else "%d faults" % e.faults
 		lines.append("%s   %s   %.1f s, %s" % [PLACES[i], e.name, e.time, faults_text])
-	_finish(place, lines)
+	var tip := "Try for a clear round: every pole down costs 4 faults." if faults > 0 \
+		else "Ride a little faster between the fences, and jumping training helps too."
+	_finish(place, lines, tip)
 
 
-## Hand out the rosette, coins and maybe a trophy, and show the results.
-func _finish(place: int, lines: Array[String]) -> void:
+## Hand out the rosette, coins and maybe a trophy, and show the results
+## with a word from Judge Clara. `tip` is advice for next time.
+func _finish(place: int, lines: Array[String], tip := "") -> void:
 	var which := event
 	var which_cup := cup
 	give_up()
@@ -208,10 +215,27 @@ func _finish(place: int, lines: Array[String]) -> void:
 		text += "\nThe %s trophy is yours!" % CUPS[which_cup]
 		if which_cup + 1 < CUPS.size():
 			text += "\nNow you can enter the %s." % CUPS[which_cup + 1]
+	_results_words.text = _feedback(place, which_cup, trophy, tip)
+	_results_ok.text = "Hooray!" if place <= 3 else "I'll try again!"
 	_results_title.text = "%s · %s" % [EVENTS[which], CUPS[which_cup]]
 	_results_title.add_theme_color_override("font_color", ROSETTE_COLORS[place - 1])
 	_results_text.text = text
 	_results.visible = true
+
+
+## What Judge Clara says after a competition.
+func _feedback(place: int, which_cup: int, trophy: bool, tip: String) -> String:
+	var horse: String = Stable.current().name
+	match place:
+		1:
+			if trophy:
+				return "Wonderful riding! You and %s were the best today. The %s is yours!" % [horse, CUPS[which_cup]]
+			return "Wonderful riding! You and %s were the best today." % horse
+		2:
+			return "So close! Just a little more and you'll win. " + tip
+		3:
+			return "Well ridden, and a rosette for you! " + tip
+	return "Don't worry, every rider starts somewhere. You'll do better next time! " + tip
 
 
 # --- The race -----------------------------------------------------------------
@@ -311,6 +335,13 @@ func _race_step(delta: float) -> void:
 		rival.along += rival.speed * delta
 		_move_rival(rival, delta)
 
+	# The checkpoint's rings ripple outwards.
+	for k in 2:
+		var ring: Node3D = _race.beam.get_node("Ring%d" % k)
+		var t := fmod(_race.time * 0.6 + k * 0.5, 1.0)
+		ring.scale = Vector3.ONE * (0.6 + 0.5 * t)
+		ring.transparency = t
+
 	# How far along the trail you are, and the checkpoints you've passed.
 	var at := Vector2(_horse.global_position.x, _horse.global_position.z)
 	var best: float = _race.progress
@@ -368,7 +399,7 @@ func _finish_race() -> void:
 		if entries[i].has("you"):
 			place = i + 1
 		lines.append("%s   %s   %.1f s" % [PLACES[i], entries[i].name, entries[i].time])
-	_finish(place, lines)
+	_finish(place, lines, "Galloping trains speed, and long rides train stamina, so your horse can gallop for longer.")
 
 
 func _end_race() -> void:
@@ -383,38 +414,91 @@ func _end_race() -> void:
 
 
 func _place_beam() -> void:
-	_race.beam.global_position = _race_spot(mini(_race.next * CHECK_EVERY, RACE_METRES), 0.0)
+	var along := mini(_race.next * CHECK_EVERY, RACE_METRES)
+	var checkpoint: Node3D = _race.beam
+	checkpoint.global_position = _race_spot(along, 0.0)
+	checkpoint.rotation.y = _trail_yaw(along)
+	# The last checkpoint is the FINISH gate, so it needs no flags of its own.
+	var last := along >= RACE_METRES
+	checkpoint.get_node("Arch").visible = not last
+	for side in ["Front", "Back"]:
+		var label: Label3D = checkpoint.get_node("Arch/" + side)
+		label.text = str(_race.next)
 
 
-## A tall golden beam with a ring, to show where the next checkpoint is.
+## The next checkpoint: a sky blue arch with its number over the trail, a
+## pulsing ring to ride through and a blue beam to spot it from afar (the
+## places to find, quest things and the judge use gold).
 func _make_beam() -> Node3D:
 	var node := Node3D.new()
 	var glow := StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	glow.albedo_color = Color(1.0, 0.85, 0.4, 0.35)
+	glow.albedo_color = Color(CHECK_COLOR, 0.4)
 	var beam := MeshInstance3D.new()
 	var tube := CylinderMesh.new()
-	tube.top_radius = 0.3
-	tube.bottom_radius = 0.6
-	tube.height = 30.0
-	tube.radial_segments = 12
+	tube.top_radius = 0.15
+	tube.bottom_radius = 0.15
+	tube.height = 26.0
+	tube.radial_segments = 8
 	beam.mesh = tube
 	beam.material_override = glow
-	beam.position.y = 15.0
+	beam.position.y = 3.8 + 13.0   # Rising from the banner, so the number shows
 	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(beam)
-	var ring := MeshInstance3D.new()
-	var torus := TorusMesh.new()
-	torus.inner_radius = CHECK_RADIUS * 0.5 - 0.15
-	torus.outer_radius = CHECK_RADIUS * 0.5
-	torus.rings = 48
-	ring.mesh = torus
-	ring.material_override = glow
-	ring.position.y = 0.2
-	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	node.add_child(ring)
+	for k in 2:
+		var ring := MeshInstance3D.new()
+		ring.name = "Ring%d" % k
+		var torus := TorusMesh.new()
+		torus.inner_radius = CHECK_RADIUS * 0.5 - 0.25
+		torus.outer_radius = CHECK_RADIUS * 0.5
+		torus.rings = 48
+		ring.mesh = torus
+		ring.material_override = glow
+		ring.position.y = 0.2
+		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.add_child(ring)
+
+	# Blue and white poles either side of the trail, and a numbered banner.
+	var arch := Node3D.new()
+	arch.name = "Arch"
+	node.add_child(arch)
+	var blue := StandardMaterial3D.new()
+	blue.albedo_color = CHECK_COLOR.darkened(0.25)
+	blue.emission_enabled = true
+	blue.emission = CHECK_COLOR
+	blue.emission_energy_multiplier = 0.3
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(0.95, 0.97, 1.0)
+	var half := CHECK_RADIUS * 0.5
+	for x in [-half, half]:
+		for k in 6:
+			var stripe := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 0.09
+			cyl.bottom_radius = 0.09
+			cyl.height = 0.5
+			stripe.mesh = cyl
+			stripe.material_override = blue if k % 2 == 0 else white
+			stripe.position = Vector3(x, 0.25 + 0.5 * k, 0)
+			arch.add_child(stripe)
+	var banner := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(CHECK_RADIUS, 1.0, 0.05)
+	banner.mesh = box
+	banner.material_override = blue
+	banner.position.y = 3.2
+	arch.add_child(banner)
+	for side in [["Front", 0.04, 0.0], ["Back", -0.04, PI]]:
+		var label := Label3D.new()
+		label.name = side[0]
+		label.font_size = 96
+		label.pixel_size = 0.009
+		label.outline_size = 16
+		label.position = Vector3(0, 3.2, side[1])
+		label.rotation.y = side[2]
+		arch.add_child(label)
 	return node
 
 
@@ -551,15 +635,22 @@ func _build_ui() -> void:
 	_dialog.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_dialog.position.y -= 100
 	_dialog.visible = false
+	var talk_row := HBoxContainer.new()
+	talk_row.add_theme_constant_override("separation", 16)
+	_dialog.add_child(talk_row)
+	var face := Portrait.new()
+	face.custom_minimum_size = Vector2(120, 120)
+	talk_row.add_child(face)
+	face.show_person(JUDGE.look)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 10)
-	_dialog.add_child(column)
+	talk_row.add_child(column)
 	var who := _label(JUDGE.name, 24)
 	who.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	column.add_child(who)
 	_words = _label("", 20)
 	_words.autowrap_mode = TextServer.AUTOWRAP_WORD
-	_words.custom_minimum_size.x = 560
+	_words.custom_minimum_size.x = 520
 	column.add_child(_words)
 	_buttons = HBoxContainer.new()
 	_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -610,7 +701,30 @@ func _build_ui() -> void:
 	var results_column := VBoxContainer.new()
 	results_column.add_theme_constant_override("separation", 14)
 	_results.add_child(results_column)
-	_results_title = _label("", 30)
+	# Judge Clara's face and what she says, then the results.
+	var judge_row := HBoxContainer.new()
+	judge_row.add_theme_constant_override("separation", 16)
+	results_column.add_child(judge_row)
+	var face_back := PanelContainer.new()
+	face_back.add_theme_stylebox_override("panel", _style(Color(1, 0.95, 0.85, 0.15)))
+	judge_row.add_child(face_back)
+	var judge_face := Portrait.new()
+	judge_face.custom_minimum_size = Vector2(140, 140)
+	face_back.add_child(judge_face)
+	judge_face.show_person(JUDGE.look)
+	var speech := VBoxContainer.new()
+	speech.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	judge_row.add_child(speech)
+	var judge_name := _label(JUDGE.name, 22)
+	judge_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	judge_name.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	speech.add_child(judge_name)
+	_results_words = _label("", 20)
+	_results_words.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_results_words.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_results_words.custom_minimum_size.x = 380
+	speech.add_child(_results_words)
+	_results_title = _label("", 28)
 	results_column.add_child(_results_title)
 	_results_text = _label("", 20)
 	_results_text.custom_minimum_size.x = 480
@@ -619,7 +733,7 @@ func _build_ui() -> void:
 	ok_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	results_column.add_child(ok_row)
 	var ok := Button.new()
-	ok.text = "Hooray!"
+	_results_ok = ok
 	ok.focus_mode = Control.FOCUS_NONE
 	ok.custom_minimum_size = Vector2(180, 56)
 	ok.add_theme_font_size_override("font_size", 22)

@@ -87,18 +87,22 @@ func _plan(stable: Node) -> void:
 	steps.append(func():
 		_check("A 20 s clear round wins the Bronze cup", stable.best_place("jumping", 0) == 1 and comps._results.visible)
 		_check("Won 50 coins", stable.coins == 50)
+		_check("Judge Clara congratulates you", "Wonderful" in comps._results_words.text)
 		_check("Silver cup open", stable.cup_open("jumping", 1) and comps.next_cup("jumping") == 1)
 		comps._results.visible = false
 		comps.enter("jumping", 1)
 		main.get_node("Course").finished.emit(30.0, 8))
 	steps.append(func():
 		_check("Slow with 8 faults comes 4th", stable.best_place("jumping", 1) == 4 and stable.coins == 60)
+		_check("Judge Clara says you'll do better, with a tip", "better next time" in comps._results_words.text
+			and "faults" in comps._results_words.text)
 		_check("Gold cup still locked", not stable.cup_open("jumping", 2))
 		comps._results.visible = false
 		comps.enter("race", 0))
 	# The race: line up, count down, then ride the trail.
 	steps.append(func():
 		_check("Three riders line up", comps._race.rivals.size() == 3)
+		_check("Checkpoint 1 is numbered", comps._race.beam.get_node("Arch/Front").text == "1")
 		_step(int(comps.COUNTDOWN * 60) + 2)
 		_check("Countdown over", comps._race.countdown <= 0.0)
 		horse.set_physics_process(false)

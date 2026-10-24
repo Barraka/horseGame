@@ -46,7 +46,7 @@ func _ready() -> void:
 		_build_touch_controls(root)
 	else:
 		var help := _panel_label(root, Control.PRESET_TOP_RIGHT, Vector2(-20, 20), 15)
-		help.text = "W / S  ride on / slow down\nA / D  steer\nQ / E or 0-4  gait\nSpace  jump\nDrag  look around"
+		help.text = "U / J  ride on / slow down\nH / K  steer\nLeft click  faster\nRight click  slower\nSpace  jump\nDrag  look around"
 
 	var stable := Button.new()
 	stable.text = "Stable"

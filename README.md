@@ -12,9 +12,9 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 
 | Key | Action |
 | --- | --- |
-| W / S or ↑ / ↓ | Ride on / slow down and back up |
-| A / D or ← / → | Steer |
-| Q / E, or 0 to 4 | Change gait (halt, walk, trot, canter, gallop) |
+| U / J or ↑ / ↓ | Ride on / slow down and back up |
+| H / K or ← / → | Steer |
+| Left click / right click | One gait faster / slower (also Q / E, or 0 to 4 for halt, walk, trot, canter, gallop) |
 | Space | Jump (trot or faster) |
 | Mouse drag, scroll | Look around, zoom |
 
@@ -32,7 +32,7 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Training:** every horse gets better at what you do with it. Cantering and galloping train **speed** (a faster canter and gallop), jumping trains **jumping** (higher jumps, with extra for clearing a course fence), and riding anywhere trains **stamina** (a longer gallop). Galloping uses up the horse's breath, shown as a blue bar above the gait buttons; when it runs out the horse drops to a canter until it has its breath back. Each skill goes from level 1 to 10, shown under **Training** in the stable. The numbers are at the top of `scripts/stable_data.gd` and `scripts/horse.gd`.
 
-**Competitions:** Judge Clara stands by the arena with a table of cups. Ride up to her to enter **show jumping** (beat the other riders' rounds on the arena course: fewest faults, then fastest time) or the **trail race** (line up with three other riders, then race 700 m along the trail through the golden checkpoints). Each has a Bronze, Silver and Gold cup, with better riders in each. Every place wins a rosette and coins, and winning a cup wins its trophy and opens the next cup. The **Trophies** button in the stable shows the cups and rosettes you've won. The riders and prizes are at the top of `scripts/competitions.gd`.
+**Competitions:** Judge Clara stands by the arena with a table of cups. Ride up to her to enter **show jumping** (beat the other riders' rounds on the arena course: fewest faults, then fastest time) or the **trail race** (line up with three other riders, then race 700 m along the trail through the numbered sky blue checkpoints). Each has a Bronze, Silver and Gold cup, with better riders in each. Every place wins a rosette and coins, and winning a cup wins its trophy and opens the next cup. Afterwards Judge Clara tells you how you did, with a tip when you didn't win. The **Trophies** button in the stable shows the cups and rosettes you've won. The riders and prizes are at the top of `scripts/competitions.gd`.
 
 **Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
 
@@ -67,6 +67,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/tack.gd` | The tack (saddle pad, saddle, stirrups, bridle, reins, leg wraps), built from simple shapes and moved along with the horse; add colours to its lists |
 | `scripts/tack_panel.gd` | The stable's Tack panel |
 | `scripts/competitions.gd` | Judge Clara, the show jumping and trail race cups, the other riders and the results |
+| `scripts/portrait.gd` | A close-up picture of a person's face, for Judge Clara's windows |
 | `scripts/trophy_shelf.gd` | The stable's Trophies button and panel |
 | `scripts/quests.gd` | The people around the world and their quests, the quest list and the talk box |
 | `scripts/shop.gd` | The stable's shop: horses and tack colours to buy with coins |
@@ -92,8 +93,9 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |
 | `tests/competition_test.gd` | Automatic test: wins and loses show jumping and race cups, and checks prizes and trophies |
+| `tests/controls_test.gd` | Automatic test: U J H K keys, and clicks to change gait |
 | `tests/training_test.gd` | Automatic test: trains a horse and checks it gallops faster, jumps higher and lasts longer |
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` and `godot --headless --path . -s tests/competition_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` and `godot --headless --path . -s tests/controls_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.
