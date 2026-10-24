@@ -225,7 +225,7 @@ func _finish(place: int, lines: Array[String], tip := "") -> void:
 
 ## What Judge Clara says after a competition.
 func _feedback(place: int, which_cup: int, trophy: bool, tip: String) -> String:
-	var horse: String = Stable.current().name
+	var horse: String = Stable.horse_name(Stable.selected)
 	match place:
 		1:
 			if trophy:

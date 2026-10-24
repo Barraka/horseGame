@@ -63,8 +63,8 @@ func _ready() -> void:
 
 	_horse.gait_changed.connect(_on_gait_changed)
 	_horse.jump_refused.connect(func(): show_message("Trot or faster to jump!"))
-	_horse.out_of_breath.connect(func(): show_message("%s is out of breath!\nCanter or trot for a bit" % Stable.current().name))
-	Stable.level_up.connect(func(_i, skill, level): show_message("%s's %s is now level %d!" % [Stable.current().name, Stable.SKILL_NAMES[skill].to_lower(), level]))
+	_horse.out_of_breath.connect(func(): show_message("%s is out of breath!\nCanter or trot for a bit" % Stable.horse_name(Stable.selected)))
+	Stable.level_up.connect(func(_i, skill, level): show_message("%s's %s is now level %d!" % [Stable.horse_name(Stable.selected), Stable.SKILL_NAMES[skill].to_lower(), level]))
 	course.status_changed.connect(func(text): _status.text = text)
 	course.announce.connect(show_message)
 	_on_gait_changed(0)

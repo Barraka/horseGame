@@ -28,6 +28,7 @@ var _env: Environment
 var _sky: ShaderMaterial
 var _rain: GPUParticles3D
 var _fireflies: GPUParticles3D
+var _moonlight: OmniLight3D       ## A soft light by the camera at night, so the horse stays easy to see
 var _rng := RandomNumberGenerator.new()
 
 
@@ -53,6 +54,13 @@ func _ready() -> void:
 	add_child(_rain)
 	_fireflies = _firefly_particles()
 	add_child(_fireflies)
+	_moonlight = OmniLight3D.new()
+	_moonlight.light_color = Color(0.72, 0.8, 1.0)
+	_moonlight.omni_range = 10.0
+	_moonlight.omni_attenuation = 1.5
+	_moonlight.light_energy = 0.0
+	_moonlight.shadow_enabled = false
+	add_child(_moonlight)
 	_apply()
 
 
@@ -82,6 +90,7 @@ func _process(delta: float) -> void:
 	var camera := get_viewport().get_camera_3d()
 	if camera:
 		_rain.global_position = camera.global_position + Vector3(0, 10, 0) - camera.global_basis.z * 6.0
+		_moonlight.global_position = camera.global_position + Vector3(0, 1.5, 0)
 		_fireflies.global_position = camera.global_position + Vector3(0, -1.5, 0) - camera.global_basis.z * 8.0
 	_apply()
 
@@ -155,6 +164,8 @@ func _apply() -> void:
 	_rain.amount_ratio = clampf(rain, 0.0, 1.0)
 	_rain.emitting = rain > 0.02
 	_fireflies.emitting = night > 0.5 and rain < 0.2
+	_moonlight.light_energy = night * 1.6
+	_moonlight.visible = night > 0.01
 
 
 func _rain_particles() -> GPUParticles3D:
