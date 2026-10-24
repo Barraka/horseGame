@@ -46,7 +46,10 @@ func _process(_delta: float) -> bool:
 		print("Saved tack: ", stored)
 		print("Built tack: ", tack.config)
 		print("Furthest noseband from nose: %.2f m" % worst)
-		ok = ok and stored == CHOICE and tack.config == CHOICE and worst < 0.4
+		var built := {}
+		for key in CHOICE:
+			built[key] = tack.config[key]
+		ok = ok and stored == CHOICE and built == CHOICE and worst < 0.4
 		print("RESULT: ", "PASS" if ok else "FAIL")
 		stable.training[stable.selected] = saved_training
 		stable.set_tack(stable.selected, saved_tack)   # Saves both
