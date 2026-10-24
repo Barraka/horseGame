@@ -18,6 +18,8 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 | Space | Jump (trot or faster) |
 | Mouse drag, scroll | Look around, zoom |
 | T / R | Move the clock on two hours / change the weather |
+| Tab | Open or close the map |
+| P | Photo mode (Escape to leave) |
 
 On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons bottom right; drag on the open screen to look around.
 
@@ -48,6 +50,10 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 **Competitions:** Judge Clara stands by the arena with a table of cups. Ride up to her to enter **show jumping** (beat the other riders' rounds on the arena course: fewest faults, then fastest time), the **trail race** (line up with three other riders, then race 700 m along the trail through the numbered sky blue checkpoints), **dressage** or **cross-country**. In dressage the jumps clear out of the arena and you ride a test from letter to letter (A, K, E, H, C, M, B, F round the fence and X in the middle): ride through each pink ring in the gait shown, and halt at X at the end. Each movement scores marks for the right gait, riding right through the letter and going straight there, and a well-bonded horse earns a harmony bonus. Cross-country is a course of nine natural jumps out along the trail east of the arena (logs, a jump into a splash of water, hay bales, a brush hedge, a stone wall and more), each between a red flag on the right and a white one on the left. A jump too low is a refusal (20 penalties, and you try again), riding past beside it is a run-out (20 penalties), and every second over the optimum time adds 0.4. The jumps stay out there, so you can practise them any time. Each has a Bronze, Silver and Gold cup, with better riders in each. Every place wins a rosette and coins, and winning a cup wins its trophy and opens the next cup. Afterwards Judge Clara tells you how you did, with a tip when you didn't win. The **Trophies** button in the stable shows the cups and rosettes you've won. The riders and prizes are at the top of `scripts/competitions.gd`.
 
 **Your rider:** the first time the game starts, you design your rider: girl or boy, skin tone, hairstyle and colour, outfit and riding helmet. Drag to turn the rider around and press **Done**. The **My Rider** button in the stable brings the screen back. Your rider sits on whichever horse you ride.
+
+**Map:** press **Map** at the top of the riding screen (or Tab) to see the whole countryside from above: the trail, hills, lake, arena, woods and beach. Places you've found are gold stars with their names, places still to find are question marks, people with a quest for you have a **!** (or a **?** when your reward is waiting), the purple dot is Judge Clara, and the arrow is you. The game waits while the map is open.
+
+**Photo mode:** press **Photo** (or P) to stop time and take pictures of your horse. Drag to move the camera around the horse, scroll (or pinch, or press − and +) to go closer, and pick a look: as it is, golden, black and white, dreamy or old photo. Press **Take photo** to save it. On PC photos go in your Pictures folder under *Silver Mane*; on the tablet they're kept in the game. **Album** shows your photos.
 
 **Exploring:** a trail loops out from the arena through the countryside, past six places to find: Sparkle Lake, Flower Valley, the Stone Circle, the Old Windmill, the Hilltop Lookout and the Wild Horse Meadow. Three more are down on the beach. Places you haven't found yet have a golden light beam over them, so you can spot them from far away. Ride up to one to find it; the count shows under the course status and is saved. The places and the trail are listed at the top of `scripts/world.gd`.
 
@@ -111,7 +117,10 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/rocks.gd`, `shaders/rock.gdshader` | Lumpy, mossy rocks and standing stones made in code |
 | `scripts/course.gd`, `scripts/fence.gd`, `scripts/gate.gd` | Show jumping course, scoring, fences and gates |
 | `scripts/follow_camera.gd` | Third-person camera |
+| `scripts/world_map.gd` | The map: the countryside drawn from above, with places, people and you |
+| `scripts/photo_mode.gd`, `shaders/photo_filter.gdshader` | Photo mode: its own camera around the horse, the looks, saving photos and the album |
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
+| `tests/map_photo_test.gd` | Automatic test: opens and closes the map and photo mode, and checks the map's places, the photo camera and the looks |
 | `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
 | `tests/bonding_test.gd` | Automatic test: hearts grow with care, tricks unlock and play, and a whistle brings the horse over |
 | `tests/sound_test.gd` | Automatic test: every sound loads, hoofbeats keep time and splash in water, and caring for the horse makes its sounds |
@@ -131,4 +140,4 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/salon_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` `godot --headless --path . -s tests/controls_test.gd`, `godot --headless --path . -s tests/stable_test.gd`, `godot --headless --path . -s tests/breeds_test.gd`, `godot --headless --path . -s tests/names_test.gd`, `godot --headless --path . -s tests/settings_test.gd` `godot --headless --path . -s tests/day_night_test.gd` and `godot --headless --path . -s tests/dressage_xc_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/salon_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` `godot --headless --path . -s tests/controls_test.gd`, `godot --headless --path . -s tests/stable_test.gd`, `godot --headless --path . -s tests/breeds_test.gd`, `godot --headless --path . -s tests/names_test.gd`, `godot --headless --path . -s tests/settings_test.gd` `godot --headless --path . -s tests/day_night_test.gd` `godot --headless --path . -s tests/map_photo_test.gd` and `godot --headless --path . -s tests/dressage_xc_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.
