@@ -2,7 +2,8 @@ shader_type spatial;
 // The ground. The mesh's vertex colours paint grass, trail and lake bed
 // (world.gd ground_color); this adds what makes it look less flat: big
 // soft patches of lusher and drier grass, a fine grain of light and dark
-// blades, little bumps that catch the sun, and pebbles on the trail.
+// blades, little bumps that catch the sun, pebbles on the trail and
+// glints in the snow.
 
 #include "res://shaders/ground.gdshaderinc"
 
@@ -28,9 +29,15 @@ void fragment() {
 	float pebble = smoothstep(0.72, 0.78, texture(grain, world.xz * 0.9).r);
 	color = mix(color, color * 0.7, pebble * (1.0 - grassy) * 0.7);
 
+	// Snow (white, a little blue): smooth, with tiny glints that twinkle
+	// as you ride past.
+	float snowy = smoothstep(0.62, 0.8, min(base.r, min(base.g, base.b))) * step(base.r, base.b + 0.02);
+	float glint = smoothstep(0.86, 0.9, texture(grain, world.xz * 2.7 + VIEW.xy * 0.06).r);
+	color += vec3(0.5, 0.55, 0.65) * glint * snowy;
+
 	ALBEDO = color;
-	ROUGHNESS = mix(0.85, 0.95, grassy);
-	SPECULAR = 0.25;
+	ROUGHNESS = mix(mix(0.85, 0.95, grassy), 0.5, snowy);
+	SPECULAR = mix(0.25, 0.5, snowy);
 	NORMAL_MAP = texture(bumps, world.xz * mix(0.25, 0.12, grassy)).rgb;
 	NORMAL_MAP_DEPTH = mix(0.8, 0.5, grassy);
 }

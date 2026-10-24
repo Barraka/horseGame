@@ -50,7 +50,7 @@ func _process(delta: float) -> void:
 	for place in _world.PLACES:
 		if place.id in Stable.discovered:
 			continue
-		var reach := FIND_DISTANCE + (_world.LAKE_RADIUS if place.id == "lake" else 0.0)
+		var reach: float = FIND_DISTANCE + (_world.LAKE_RADIUS if place.id == "lake" else place.get("reach", 0.0))
 		if at.distance_to(place.pos) < reach:
 			_discover(place)
 

@@ -3,7 +3,8 @@ extends Node3D
 ## Builds the countryside: rolling grassy terrain, a sand riding arena,
 ## a trail looping past a lake and other places to discover, trees, rocks,
 ## swaying grass (grass.gd) and drifts of wildflowers. Hills rise at the
-## edges to close it in.
+## edges to close it in, the sea lies to the east and snowy mountains lie
+## beyond a pass to the north.
 ## Everything is generated from a seed, so the world looks the same every
 ## time. It also runs in the editor; reopen the scene to see changes to
 ## the settings below. The places themselves are built by explore.gd.
@@ -30,6 +31,9 @@ const PLACES := [
 	{"id": "cove",     "name": "Seashell Cove",     "pos": Vector2(184, -36)},
 	{"id": "wreck",    "name": "Old Shipwreck", "the": true,     "pos": Vector2(204, 82)},
 	{"id": "lighthouse", "name": "Lighthouse Point",  "pos": Vector2(188, -152)},
+	{"id": "frozen_lake", "name": "Frozen Lake", "the": true,  "pos": Vector2(12, -338), "reach": 26.0},
+	{"id": "hut",      "name": "Mountain Hut", "the": true,      "pos": Vector2(-46, -298)},
+	{"id": "falls",    "name": "Frozen Falls", "the": true,      "pos": Vector2(44, -392)},
 ]
 const LAKE_CENTER := Vector2(95, 70)
 const LAKE_RADIUS := 30.0
@@ -49,7 +53,32 @@ const TRAIL := [
 const BEACH_PATH := [
 	Vector2(128, -6), Vector2(146, -12), Vector2(160, -4), Vector2(172, -2),
 ]
+## A path off the trail north, up through the pass into the mountains.
+const MOUNTAIN_PATH := [
+	Vector2(-40, -132), Vector2(-34, -160), Vector2(-26, -190), Vector2(-21, -212), Vector2(-20, -238),
+]
 const TRAIL_WIDTH := 3.0
+## The snowy mountains beyond the hills to the north: a valley reached
+## through a pass, with the Frozen Lake, the Mountain Hut and the Frozen
+## Falls, and peaks all round. Snow starts at SNOW_LINE (z) and covers
+## everything past SNOW_FULL. mountains.gd builds the places.
+const SNOW_LINE := -212.0
+const SNOW_FULL := -246.0
+const PASS_X := -20.0              ## Where the pass cuts through the hills
+const MOUNTAINS_END := -440.0      ## The far edge of the mountain land
+const MOUNTAIN_HEIGHT := 70.0      ## How high the peaks rise above the valley
+const ICE_RADIUS := 26.0           ## The Frozen Lake
+const ICE_LEVEL := 21.0
+## The snowy track through the valley, marked with poles: from the pass to
+## the hut, the lake and the falls.
+const SNOW_TRACK := [
+	Vector2(-20, -238), Vector2(-24, -262), Vector2(-40, -286), Vector2(-30, -306),
+	Vector2(-14, -318), Vector2(10, -306), Vector2(38, -322), Vector2(44, -350), Vector2(42, -378),
+]
+const SNOW := Color(0.86, 0.89, 0.95)
+const SNOW_SHADE := Color(0.64, 0.71, 0.85)
+const SNOW_TRACK_COLOR := Color(0.74, 0.74, 0.76)
+const MOUNTAIN_ROCK := Color(0.36, 0.35, 0.38)
 ## The beach along the east side: dunes, then sand sloping down into the
 ## sea. The coast curves gently (coast_x); the edge hills run out into the
 ## sea at both ends as headlands.
@@ -73,6 +102,7 @@ const LAKE_BED := Color(0.42, 0.4, 0.3)
 
 var noise := FastNoiseLite.new()
 var detail := FastNoiseLite.new()
+var ridges := FastNoiseLite.new()
 var rng := RandomNumberGenerator.new()
 var trail_points := PackedVector2Array()   ## The trail's centre line, a point every metre
 var _trail_mask := PackedFloat32Array()    ## 1 on the trail, fading to 0, on a 1 m grid
@@ -89,11 +119,16 @@ func _ready() -> void:
 	noise.fractal_octaves = 3
 	detail.seed = world_seed + 1
 	detail.frequency = 0.08
+	ridges.seed = world_seed + 5
+	ridges.frequency = 0.011
+	ridges.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	ridges.fractal_octaves = 4
 	rng.seed = world_seed
 	_build_trail()
 	_build_terrain()
 	_build_arena()
 	_scatter_trees()
+	_scatter_mountain_trees()
 	_scatter_bushes()
 	_scatter_rocks()
 	_build_plantings()
@@ -117,6 +152,8 @@ func height_at(x: float, z: float) -> float:
 	# Hills closing in the edges of the world, except the east, which opens
 	# onto the beach.
 	var hills := EDGE_HEIGHT * smoothstep(size * 0.5 - 55.0, size * 0.5 - 5.0, absf(z))
+	if z < 0.0:   # The pass through the north hills
+		hills *= 1.0 - exp(-pow(x - PASS_X, 2.0) / (24.0 * 24.0))
 	h += maxf(EDGE_HEIGHT * smoothstep(size * 0.5 - 55.0, size * 0.5 - 5.0, -x), hills)
 	# The beach: sand sloping gently into the sea, with the end hills as headlands.
 	var shore := shore_distance(x, z)
@@ -133,7 +170,52 @@ func height_at(x: float, z: float) -> float:
 		if d < LAKE_RADIUS + 4.0:
 			var bowl := LAKE_SHORE - 1.5 * (1.0 - smoothstep(LAKE_RADIUS * 0.3, LAKE_RADIUS + 4.0, d))
 			h = minf(h, bowl)
+	# Past the pass, the mountains.
+	var snowy := smoothstep(SNOW_LINE + 12.0, SNOW_FULL, z)
+	if snowy > 0.0:
+		h = lerpf(h, _mountain_height(x, z), snowy)
 	return h
+
+
+## The mountain land: a valley climbing from the pass, with a flat frozen
+## lake, and steep ridged peaks on both sides and at the far end.
+func _mountain_height(x: float, z: float) -> float:
+	var middle := lerpf(PASS_X, 0.0, smoothstep(-236.0, -300.0, z))
+	var half := lerpf(18.0, 80.0, smoothstep(-232.0, -292.0, z)) * (1.0 - 0.3 * smoothstep(-360.0, -410.0, z))
+	var across := absf(x - middle)
+	var ground := 4.0 + 17.0 * smoothstep(-225.0, -322.0, z)
+	ground += (noise.get_noise_2d(x * 1.6, z * 1.6) * 0.5 + 0.5) * 3.0 + detail.get_noise_2d(x, z) * 0.35
+	var rise := maxf(smoothstep(half, half + 60.0, across), smoothstep(-392.0, -428.0, z))
+	var peaks := MOUNTAIN_HEIGHT * (0.55 + 0.6 * (ridges.get_noise_2d(x, z) * 0.5 + 0.5))
+	peaks *= lerpf(0.4, 1.0, 1.0 - smoothstep(175.0, 236.0, absf(x)))   # Lower out towards the sea
+	var h := ground + peaks * pow(rise, 1.4)
+	# The frozen lake: flat ice, with a gentle bank around it.
+	var lake: Vector2 = PLACES[9].pos
+	var d := Vector2(x, z).distance_to(lake)
+	if d < ICE_RADIUS + 16.0:
+		h = lerpf(ICE_LEVEL, h, smoothstep(ICE_RADIUS + 2.0, ICE_RADIUS + 16.0, d))
+	return h
+
+
+## How snowy a spot is: 0 below the snow line, 1 in the mountains.
+static func snow_at(x: float, z: float) -> float:
+	return smoothstep(SNOW_LINE, SNOW_FULL, z)
+
+
+func is_on_ice(x: float, z: float, margin := 0.0) -> bool:
+	return Vector2(x, z).distance_to(PLACES[9].pos) < ICE_RADIUS + margin
+
+
+## How far a point is from the snowy track's centre line.
+func snow_track_distance(x: float, z: float) -> float:
+	var p := Vector2(x, z)
+	var best := INF
+	for i in SNOW_TRACK.size() - 1:
+		var a: Vector2 = SNOW_TRACK[i]
+		var b: Vector2 = SNOW_TRACK[i + 1]
+		var t := clampf((p - a).dot(b - a) / (b - a).length_squared(), 0.0, 1.0)
+		best = minf(best, p.distance_to(a.lerp(b, t)))
+	return best
 
 
 ## Where the sea meets the sand, along the east side, at `z`.
@@ -152,7 +234,7 @@ func is_beach(x: float, z: float, margin := 0.0) -> bool:
 
 
 ## The ground's painted colour at a point: grass in two greens, the trail
-## in sandy browns, and the lake bed. The grass blades take it too.
+## in sandy browns, the lake bed, sand, and snow and rock in the mountains. The grass blades take it too.
 func ground_color(x: float, z: float) -> Color:
 	var t := clampf(detail.get_noise_2d(x * 0.5, z * 0.5) * 0.8 + 0.5, 0.0, 1.0)
 	var color := GRASS_DARK.lerp(GRASS_LIGHT, t)
@@ -165,6 +247,20 @@ func ground_color(x: float, z: float) -> Color:
 		color = color.lerp(sand, amount)
 	if is_in_lake(x, z, 2.0):
 		color = color.lerp(LAKE_BED, 1.0 - smoothstep(LAKE_RADIUS - 2.0, LAKE_RADIUS + 2.0, Vector2(x, z).distance_to(LAKE_CENTER)))
+	var snowy := snow_at(x, z)
+	if snowy > 0.0:
+		# Snow, bluer in the hollows; grey rock on the steepest slopes, and
+		# a trodden track through the valley.
+		var h := height_at(x, z)
+		var slope := Vector2(height_at(x + 1.5, z) - h, height_at(x, z + 1.5) - h).length() / 1.5
+		var snow := SNOW_SHADE.lerp(SNOW, clampf(detail.get_noise_2d(x * 0.3, z * 0.3) * 0.9 + 0.6, 0.0, 1.0))
+		var crag := ridges.get_noise_2d(x * 2.0, z * 2.0) * 0.5 + 0.5
+		snow = snow.lerp(MOUNTAIN_ROCK.lerp(SNOW_SHADE, t * 0.3), smoothstep(0.55, 0.95, slope + (crag - 0.5) * 0.5))
+		if z < SNOW_FULL + 20.0:
+			snow = snow.lerp(SNOW_TRACK_COLOR, (1.0 - smoothstep(1.2, TRAIL_WIDTH, snow_track_distance(x, z))) * 0.8)
+		# Patches of grass poke through near the snow line.
+		var patchy := clampf(snowy * 1.4 - 0.2 + detail.get_noise_2d(x * 0.7, z * 0.7) * 0.6, 0.0, 1.0)
+		color = color.lerp(snow, patchy)
 	return color
 
 
@@ -216,11 +312,12 @@ func _build_trail() -> void:
 	_trail_mask = PackedFloat32Array()
 	_trail_mask.resize(cells * cells)
 	var path := PackedVector2Array()
-	for i in BEACH_PATH.size() - 1:
-		var a: Vector2 = BEACH_PATH[i]
-		var b: Vector2 = BEACH_PATH[i + 1]
-		for step in int(a.distance_to(b)):
-			path.append(a.lerp(b, step / a.distance_to(b)))
+	for spur in [BEACH_PATH, MOUNTAIN_PATH]:
+		for i in spur.size() - 1:
+			var a: Vector2 = spur[i]
+			var b: Vector2 = spur[i + 1]
+			for step in int(a.distance_to(b)):
+				path.append(a.lerp(b, step / a.distance_to(b)))
 	var reach := int(ceil(TRAIL_WIDTH))
 	for point in trail_points + path:
 		var cx := int(point.x + size * 0.5)
@@ -242,34 +339,6 @@ func is_in_arena(x: float, z: float, margin := 0.0) -> bool:
 
 
 func _build_terrain() -> void:
-	var cells := int(size / cell)
-	var half := size * 0.5
-	var heights := PackedFloat32Array()
-	heights.resize((cells + 1) * (cells + 1))
-	for zi in cells + 1:
-		for xi in cells + 1:
-			heights[zi * (cells + 1) + xi] = height_at(xi * cell - half, zi * cell - half)
-
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for zi in cells + 1:
-		for xi in cells + 1:
-			var x := xi * cell - half
-			var z := zi * cell - half
-			st.set_color(ground_color(x, z))
-			st.set_uv(Vector2(xi, zi))
-			st.add_vertex(Vector3(x, heights[zi * (cells + 1) + xi], z))
-	for zi in cells:
-		for xi in cells:
-			var i := zi * (cells + 1) + xi
-			st.add_index(i)
-			st.add_index(i + 1)
-			st.add_index(i + cells + 1)
-			st.add_index(i + 1)
-			st.add_index(i + cells + 2)
-			st.add_index(i + cells + 1)
-	st.generate_normals()
-
 	# Soft painted detail on top of the colours: see terrain.gdshader.
 	var mat := ShaderMaterial.new()
 	mat.shader = preload("res://shaders/terrain.gdshader")
@@ -277,38 +346,84 @@ func _build_terrain() -> void:
 	mat.set_shader_parameter("grain", _noise_texture(0.03, 4, 256, false))
 	mat.set_shader_parameter("bumps", _noise_texture(0.03, 4, 256, true))
 	_ground_material = mat
+	var half := size * 0.5
+	_build_ground(Rect2(-half, -half, size, size), "Terrain")
+	_build_ground(Rect2(-half, MOUNTAINS_END, size, -half - MOUNTAINS_END), "Mountains")
+	# Invisible walls on the hills at the edge, so the horse stays in the
+	# world: round the countryside, with a gap at the pass, and round the
+	# mountains beyond it.
+	var edge := size * 0.5 - 20.0
+	var back := MOUNTAINS_END + 14.0
+	var gap := 22.0
+	_wall(Vector2(-size * 0.5, edge), Vector2(size * 0.5, edge))
+	_wall(Vector2(-edge, back), Vector2(-edge, size * 0.5))
+	_wall(Vector2(214.0, back), Vector2(214.0, size * 0.5))   # The east one stands in the shallow sea
+	_wall(Vector2(-size * 0.5, -edge), Vector2(PASS_X - gap, -edge))
+	_wall(Vector2(PASS_X + gap, -edge), Vector2(size * 0.5, -edge))
+	_wall(Vector2(-size * 0.5, back), Vector2(size * 0.5, back))
+
+
+## One piece of ground: a mesh painted with ground_color and its collision.
+func _build_ground(area: Rect2, node_name: String) -> void:
+	var columns := int(area.size.x / cell)
+	var rows := int(area.size.y / cell)
+	var heights := PackedFloat32Array()
+	heights.resize((columns + 1) * (rows + 1))
+	for zi in rows + 1:
+		for xi in columns + 1:
+			heights[zi * (columns + 1) + xi] = height_at(area.position.x + xi * cell, area.position.y + zi * cell)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for zi in rows + 1:
+		for xi in columns + 1:
+			var x := area.position.x + xi * cell
+			var z := area.position.y + zi * cell
+			st.set_color(ground_color(x, z))
+			st.set_uv((Vector2(x, z) + Vector2(size, size) * 0.5) / cell)
+			st.add_vertex(Vector3(x, heights[zi * (columns + 1) + xi], z))
+	for zi in rows:
+		for xi in columns:
+			var i := zi * (columns + 1) + xi
+			st.add_index(i)
+			st.add_index(i + 1)
+			st.add_index(i + columns + 1)
+			st.add_index(i + 1)
+			st.add_index(i + columns + 2)
+			st.add_index(i + columns + 1)
+	st.generate_normals()
 
 	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.name = "Terrain"
+	mesh_instance.name = node_name
 	mesh_instance.mesh = st.commit()
-	mesh_instance.material_override = mat
+	mesh_instance.material_override = _ground_material
 	add_child(mesh_instance)
 
 	var shape := HeightMapShape3D.new()
-	shape.map_width = cells + 1
-	shape.map_depth = cells + 1
+	shape.map_width = columns + 1
+	shape.map_depth = rows + 1
 	shape.map_data = heights
 	var collision := CollisionShape3D.new()
 	collision.shape = shape
 	collision.scale = Vector3(cell, 1, cell)
 	var body := StaticBody3D.new()
-	body.name = "TerrainBody"
+	body.name = node_name + "Body"
+	body.position = Vector3(area.get_center().x, 0, area.get_center().y)
 	body.add_child(collision)
 	add_child(body)
 
-	# Invisible walls on the hills at the edge, so the horse stays in the world.
-	for side in 4:
-		var wall := StaticBody3D.new()
-		var wall_shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = Vector3(size, 60.0, 2.0)
-		wall_shape.shape = box
-		wall.add_child(wall_shape)
-		wall.rotation.y = side * PI * 0.5
-		# The east wall stands out in the sea, where it's still shallow.
-		var reach := 214.0 if side == 1 else size * 0.5 - 20.0
-		wall.position = Vector3(0, 20.0, reach).rotated(Vector3.UP, side * PI * 0.5)
-		add_child(wall)
+
+## An invisible wall along a line on the ground.
+func _wall(from: Vector2, to: Vector2) -> void:
+	var wall := StaticBody3D.new()
+	var wall_shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(maxf(absf(to.x - from.x), 2.0), 200.0, maxf(absf(to.y - from.y), 2.0))
+	wall_shape.shape = box
+	wall.add_child(wall_shape)
+	var middle := (from + to) * 0.5
+	wall.position = Vector3(middle.x, 40.0, middle.y)
+	add_child(wall)
 
 
 func _build_arena() -> void:
@@ -469,6 +584,28 @@ func _scatter_trees() -> void:
 		if trail_at(p.x, p.y) > 0.0:
 			continue
 		_plant("willow" if rng.randf() < 0.75 else "birch", Vector3(p.x, height_at(p.x, p.y), p.y), rng.randf_range(0.95, 1.3))
+
+
+## Snowy pines (and a few birches) in the mountain valley and up its
+## lower slopes, keeping off the track, the ice and the places.
+func _scatter_mountain_trees() -> void:
+	var groves := FastNoiseLite.new()
+	groves.seed = world_seed + 6
+	groves.frequency = 0.03
+	var planted := 0
+	for attempt in 900:
+		if planted >= 150:
+			break
+		var x := rng.randf_range(-130.0, 130.0)
+		var z := rng.randf_range(SNOW_FULL - 8.0, -400.0)
+		var y := height_at(x, z)
+		var above := y - (4.0 + 17.0 * smoothstep(-225.0, -322.0, z))
+		if above > 22.0 or groves.get_noise_2d(x, z) < -0.15 or snow_track_distance(x, z) < 5.0 or is_on_ice(x, z, 8.0):
+			continue
+		if PLACES.slice(9).any(func(place): return Vector2(x, z).distance_to(place.pos) < 18.0):
+			continue
+		_plant("pine" if rng.randf() < 0.88 else "birch", Vector3(x, y, z), rng.randf_range(0.9, 1.5))
+		planted += 1
 
 
 ## Which kind of tree grows at a spot. `field` is a slowly changing noise
