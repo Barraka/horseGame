@@ -68,7 +68,9 @@ func _grow(kind: String, seed: int) -> ArrayMesh:
 	_name = kind
 	_rng.seed = seed
 	_atlas = kind != "willow"
-	_detail = 0.7 if OS.has_feature("mobile") else 1.0
+	var tree := Engine.get_main_loop() as SceneTree
+	var settings: Node = tree.root.get_node_or_null("Settings") if tree else null
+	_detail = settings.tree_detail() if settings else 1.0
 	_bark.begin(Mesh.PRIMITIVE_TRIANGLES)
 	_leaves.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var texture := "leaves"

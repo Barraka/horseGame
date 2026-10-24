@@ -303,6 +303,15 @@ func _build_ui() -> void:
 		_trophies.close()
 		_care.set_panel_visible(false)
 		_picker.visible = false)
+	var settings := preload("res://scripts/settings_panel.gd").new()
+	root.add_child(settings)
+	var settings_button := _button("Settings", 18, settings.open, Vector2(140, 48))
+	root.add_child(settings_button)
+	settings_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	settings_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	settings_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	settings_button.position += Vector2(-24, -24)
+	root.move_child(settings, -1)   # Opens over everything
 	_shop.closed.connect(func():
 		_care.set_panel_visible(true)
 		_picker.visible = true
