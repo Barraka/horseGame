@@ -1,6 +1,8 @@
 extends Node3D
 ## A horse's tack: saddle pad, saddle with stirrups, bridle with reins, and
-## leg wraps, in the colours chosen in the stable. The horse has no bones
+## leg wraps, in the colours chosen in the stable. Also the grooming salon's
+## braids and ribbons; its markings and glitter are painted by the coat
+## shader (horse.gd set_groom). The horse has no bones
 ## (it is animated with blend shapes), so horse.gd hands follow() the
 ## measured points on its back, head and legs every frame, and each piece is
 ## laid along them.
@@ -38,11 +40,60 @@ const BRIDLE_COLORS := LEATHERS + [
 ]
 const WRAP_COLORS := [{"name": "No wraps", "color": Color.TRANSPARENT}] + PAD_COLORS
 
+## The grooming salon. "face" and "legs" are white markings (coat.gdshader
+## face_marking and leg_marking), "glitter" a sparkle on the coat.
+const MANE_STYLES := [
+	{"name": "Natural",        "color": Color.TRANSPARENT},
+	{"name": "Button braids",  "color": Color(0.45, 0.32, 0.22), "price": 40},
+	{"name": "Ribbon braids",  "color": Color(0.98, 0.55, 0.72), "price": 60},
+]
+const TAIL_STYLES := [
+	{"name": "Natural",  "color": Color.TRANSPARENT},
+	{"name": "Tail bow", "color": Color(0.98, 0.55, 0.72), "price": 30},
+]
+const RIBBON_COLORS := [
+	{"name": "Pink",     "color": Color(1.0, 0.5, 0.7)},
+	{"name": "Red",      "color": Color(0.85, 0.1, 0.15)},
+	{"name": "Sky blue", "color": Color(0.45, 0.72, 1.0)},
+	{"name": "Lilac",    "color": Color(0.72, 0.56, 0.98), "price": 20},
+	{"name": "Gold",     "color": Color(1.0, 0.8, 0.3), "price": 20, "metal": true},
+	{"name": "White",    "color": Color(0.97, 0.97, 0.95), "price": 20},
+	{"name": "Mint",     "color": Color(0.5, 0.92, 0.72), "price": 20},
+]
+const WHITE := Color(0.95, 0.94, 0.9)
+const FACE_MARKINGS := [
+	{"name": "None",       "color": Color.TRANSPARENT},
+	{"name": "Star",       "color": WHITE, "price": 30},
+	{"name": "Stripe",     "color": WHITE, "price": 30},
+	{"name": "Blaze",      "color": WHITE, "price": 40},
+	{"name": "White face", "color": WHITE, "price": 60},
+]
+const LEG_MARKINGS := [
+	{"name": "None",           "color": Color.TRANSPARENT},
+	{"name": "Front socks",    "color": WHITE, "price": 30},
+	{"name": "Hind socks",     "color": WHITE, "price": 30},
+	{"name": "Four socks",     "color": WHITE, "price": 50},
+	{"name": "Four stockings", "color": WHITE, "price": 60},
+]
+const GLITTERS := [
+	{"name": "None",    "color": Color.TRANSPARENT},
+	{"name": "Gold",    "color": Color(1.0, 0.82, 0.35), "price": 50},
+	{"name": "Silver",  "color": Color(0.88, 0.92, 1.0), "price": 50},
+	{"name": "Pink",    "color": Color(1.0, 0.5, 0.8), "price": 50},
+	{"name": "Rainbow", "color": Color(0.6, 0.5, 1.0), "price": 80, "rainbow": true},
+]
+
 const OPTIONS := {
 	"pad": PAD_COLORS, "trim": TRIM_COLORS, "saddle": LEATHERS,
 	"bridle": BRIDLE_COLORS, "wraps": WRAP_COLORS,
+	"face": FACE_MARKINGS, "legs": LEG_MARKINGS, "mane": MANE_STYLES,
+	"tail": TAIL_STYLES, "ribbon": RIBBON_COLORS, "glitter": GLITTERS,
 }
-const DEFAULT := {"pad": 0, "trim": 0, "saddle": 1, "bridle": 1, "wraps": 1}
+## Which options are tack (the Tack panel) and which are grooming (the Salon).
+const TACK_KEYS := ["pad", "trim", "saddle", "bridle", "wraps"]
+const GROOM_KEYS := ["face", "legs", "mane", "tail", "ribbon", "glitter"]
+const DEFAULT := {"pad": 0, "trim": 0, "saddle": 1, "bridle": 1, "wraps": 1,
+	"face": 0, "legs": 0, "mane": 0, "tail": 0, "ribbon": 0, "glitter": 0}
 
 ## Sizes in metres, fitted to the horse model by eye.
 const NOSEBAND_SIZE := Vector2(0.1, 0.135) ## Half-width and half-height
@@ -55,6 +106,10 @@ var rider: Node3D   ## When set, the reins run to its hands and the stirrups to 
 var _saddle_parts: Node3D
 var _shells: Node3D          # Pad and saddle, scaled to the horse's breed
 var body_scale := Vector3.ONE  ## The horse's breed size and build (horse.gd body_shape)
+var mane_color := Color(0.1, 0.07, 0.05)  ## For button braids: the horse's mane
+var _braids: Array[MeshInstance3D] = []   ## A knot (and bow) at each crest point
+var _bows: Array[Node3D] = []
+var _tail_bow: Node3D
 var _wraps: Array[MeshInstance3D] = []
 var _rings := {}    ## Name -> torus MeshInstance3D placed each frame
 var _straps := {}   ## Name -> box MeshInstance3D stretched between two points each frame
@@ -81,6 +136,9 @@ func build(new_config: Dictionary, saddle_root: Node3D) -> void:
 	if _saddle_parts:
 		_saddle_parts.queue_free()
 	_wraps.clear()
+	_braids.clear()
+	_bows.clear()
+	_tail_bow = null
 	_rings.clear()
 	_straps.clear()
 	_make_materials()
@@ -91,6 +149,7 @@ func build(new_config: Dictionary, saddle_root: Node3D) -> void:
 	_build_saddle()
 	_build_bridle()
 	_build_wraps()
+	_build_braids()
 
 
 func _make_materials() -> void:
@@ -122,6 +181,14 @@ func _make_materials() -> void:
 	metal.metallic = 0.9
 	metal.roughness = 0.25
 	_materials.metal = metal
+	_materials.mane = cloth.call(mane_color)
+	_materials.mane.roughness = 0.7
+	var ribbon: Dictionary = RIBBON_COLORS[config.ribbon]
+	_materials.ribbon = cloth.call(ribbon.color)
+	_materials.ribbon.roughness = 0.4
+	if ribbon.get("metal", false):
+		_materials.ribbon.metallic = 0.7
+		_materials.ribbon.roughness = 0.3
 	var wrap_color: Color = WRAP_COLORS[config.wraps].color
 	if wrap_color.a > 0.0:
 		_materials.wraps = cloth.call(wrap_color)
@@ -260,6 +327,76 @@ func _build_wraps() -> void:
 		_wraps.append(mi)
 
 
+# --- Braids and bows ----------------------------------------------------------
+
+const BRAIDS := 7          ## Crest points measured by tools/groom_track.py
+const KNOT_SIZE := 0.032   ## Radius of a button braid, in metres
+
+
+func _build_braids() -> void:
+	if config.mane > 0:
+		var knot := SphereMesh.new()
+		knot.radius = 1.0
+		knot.height = 2.0
+		knot.radial_segments = 12
+		knot.rings = 6
+		for i in BRAIDS:
+			_braids.append(_add(knot, _materials.mane, self))
+			if config.mane == 2:
+				_bows.append(_bow(0.55))
+	if config.tail > 0:
+		_tail_bow = _bow(1.0)
+
+
+## A ribbon bow: two loops and a knot, with two short tails, `size` 1 being
+## a bow about 16 cm across. Its own space: across is X, out is +Y.
+func _bow(size: float) -> Node3D:
+	var bow := Node3D.new()
+	add_child(bow)
+	var loop := SphereMesh.new()
+	loop.radius = 1.0
+	loop.height = 2.0
+	loop.radial_segments = 12
+	loop.rings = 6
+	for s in [-1.0, 1.0]:
+		var mi := _add(loop, _materials.ribbon, bow)
+		mi.scale = Vector3(0.045, 0.012, 0.03) * size
+		mi.position = Vector3(s * 0.04, 0.0, 0.0) * size
+		mi.rotation.z = s * 0.25
+		var tail := _add(BoxMesh.new(), _materials.ribbon, bow)
+		tail.scale = Vector3(0.022, 0.004, 0.07) * size
+		tail.position = Vector3(s * 0.022, -0.004, 0.04) * size
+		tail.rotation.y = -s * 0.35
+	var knot := _add(loop, _materials.ribbon, bow)
+	knot.scale = Vector3(0.016, 0.016, 0.016) * size
+	return bow
+
+
+func _follow_braids(points: Dictionary) -> void:
+	if _braids.is_empty() and not _tail_bow:
+		return
+	var crest: Array[Vector3] = []
+	for i in BRAIDS:
+		crest.append(points["crest_%d" % i])
+	for i in _braids.size():
+		var along := (crest[mini(i + 1, BRAIDS - 1)] - crest[maxi(i - 1, 0)]).normalized()
+		var up := (Vector3.UP - along * along.dot(Vector3.UP)).normalized()
+		var across := along.cross(up).normalized()
+		var spot: Vector3 = crest[i] + up * KNOT_SIZE * 0.5
+		_braids[i].transform = Transform3D(Basis(across * KNOT_SIZE * 0.9, up * KNOT_SIZE * 0.8, along * KNOT_SIZE * 1.25), spot)
+		if i < _bows.size():
+			_bows[i].transform = Transform3D(Basis(across, up, along), spot + up * KNOT_SIZE * 0.85)
+	if _tail_bow:
+		var dock: Vector3 = points.dock
+		var croup: Vector3 = points.croup
+		var back: Vector3 = (dock - croup).normalized()
+		var up: Vector3 = (Vector3.UP - back * back.dot(Vector3.UP)).normalized()
+		var across: Vector3 = back.cross(up).normalized()
+		# On the top of the tail, facing up and back.
+		var out: Vector3 = (up + back).normalized()
+		_tail_bow.transform = Transform3D(Basis(across, out, out.cross(across).normalized()), dock + out * 0.01)
+
+
 # --- Following the horse --------------------------------------------------------
 
 ## Lay the tack along the horse. `points` are marks from saddle_track.json
@@ -268,6 +405,7 @@ func _build_wraps() -> void:
 func follow(points: Dictionary, radii: Dictionary, saddle: Transform3D) -> void:
 	_follow_head(points, saddle)
 	_follow_stirrups(saddle)
+	_follow_braids(points)
 	for i in _wraps.size():
 		var leg: String = LEGS[i]
 		var low: Vector3 = points[leg + "_low"]

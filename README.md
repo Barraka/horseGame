@@ -29,13 +29,15 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Tack:** press **Tack** in the stable to dress the horse you're looking at: saddle pad colour, pad trim, saddle leather, bridle colour and leg wraps (or none). Changes show straight away and each horse keeps its own tack, which it wears when you ride it. The colour lists are at the top of `scripts/tack.gd`.
 
+**Grooming salon:** press **Salon** in the stable to pamper the horse you're looking at: white face markings (star, stripe, blaze or a white face), white socks or stockings, button braids or braids with ribbon bows down the mane, a bow on the tail, ribbon colours, and glitter that twinkles in the light (gold, silver, pink or rainbow). Each horse keeps its own look, in its stall and when you ride. The fancier ones are bought in the shop's **Salon** tab. The lists are at the top of `scripts/tack.gd`.
+
 **Coins and the shop:** riding earns a coin every 50 m, finishing the jumping course earns 15 (40 for a clear round), and finding a new place earns 30. Press **Shop** in the stable to spend them on new horses (buckskin, cremello, dapple grey, two pintos and a spotted appaloosa) and fancy tack colours. Tap anything in the shop to try it on before buying. Prices and rewards are in `scripts/stable_data.gd` and `scripts/tack.gd`.
 
 **Names:** press **Rename** next to a horse's name in the stable to give it a new name; a horse you buy asks for its name straight away. Names show everywhere, from the stall plates to Judge Clara's results.
 
 **Breeds and foals:** every horse has a breed (warmblood, Welsh pony, Fjord, Friesian, Arabian, Gypsy cob and more), drawn at that breed's size and build: ponies are small and stocky, thoroughbreds tall and slim. The shop also sells foals. A foal can't be ridden yet: it grows a little bigger every hour (also while the game is closed, and faster when it's well looked after), each carrot helps, and after about six hours it's grown up and ready to ride. Breeds are listed in `scripts/stable_data.gd`.
 
-**Sounds and music:** a gentle harp tune plays throughout. While you ride you hear hoofbeats in time with the horse's legs (soft on grass, clopping on the trail, hushed in the arena sand, splashing in the lake), snorts and whinnies, and the thump of landing a jump. Around you there's wind, birdsong by day, crickets at night rain when it rains and waves by the sea. In the stable a carrot crunches and your horse nickers when you pat it. Every sound and the music are made from scratch by `tools/make_sounds.py` (run it with Python to remake them), so there are no recordings to credit.
+**Sounds and music:** a gentle harp tune plays throughout. While you ride you hear hoofbeats in time with the horse's legs (soft on grass, clopping on the trail, hushed in the arena sand, splashing in the lake), snorts and whinnies, and the thump of landing a jump. Around you there's wind, birdsong by day, crickets at night, rain when it rains and waves by the sea. In the stable a carrot crunches and your horse nickers when you pat it. Every sound and the music are made from scratch by `tools/make_sounds.py` (run it with Python to remake them), so there are no recordings to credit.
 
 **The beach:** follow the path that branches east off the trail down to the sea. Waves wash up the sand and foam rolls in, palms lean over the dunes and seagulls circle overhead. Three new places to find: **Seashell Cove** (a rock pool, a beach hut and shells everywhere), the **Old Shipwreck** lying in the shallows, and **Lighthouse Point**, whose lamp sweeps round at night. Marina at the cove wants 6 seashells from along the water's edge, and Keeper Finn by the lighthouse lost his spyglass near the wreck. The beach's shape is `coast_x()` in `scripts/world.gd`.
 
@@ -85,7 +87,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/stable_data.gd` | Your horses (names and coat colours), which one you ride, and how well each is looked after |
 | `scripts/horse_care.gd` | Feeding, brushing and petting in the stable |
 | `scripts/tack.gd` | The tack (saddle pad, saddle, stirrups, bridle, reins, leg wraps), built from simple shapes and moved along with the horse; add colours to its lists |
-| `scripts/tack_panel.gd` | The stable's Tack panel |
+| `scripts/tack_panel.gd` | The stable's Tack and Salon panels |
 | `scripts/competitions.gd` | Judge Clara, the show jumping and trail race cups, the other riders and the results |
 | `scripts/portrait.gd` | A close-up picture of a person's face, for Judge Clara's windows |
 | `scripts/trophy_shelf.gd` | The stable's Trophies button and panel |
@@ -98,7 +100,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `assets/rider/` | Character parts (bodies, heads, hair, outfits) from Quaternius |
 | `tools/prepare_rider.py` | Copies the character parts out of the Quaternius downloads into `assets/rider/` |
 | `tools/saddle_track.py` | Measures where the saddle, bridle and leg wraps sit on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
-| `shaders/coat.gdshader` | Recolours the horse's coat and adds mud when it's dirty |
+| `shaders/coat.gdshader` | Recolours the horse's coat, paints white markings and glitter, and adds mud when it's dirty |
+| `tools/groom_track.py` | Measures where braids and the tail bow go in each gait, and paints the map of where face and leg markings can be (writes `assets/horse/gaits/groom_track.json` and `markings.png`) |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
 | `scripts/world.gd` | Terrain, arena, trail, lake shape, where trees and bushes grow, rocks and wildflowers |
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
@@ -121,6 +124,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/sound_test.gd` | Automatic test: every sound loads, hoofbeats keep time and splash in water, and caring for the horse makes its sounds |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
+| `tests/salon_test.gd` | Automatic test: buys a marking, grooms the horse, rides through every gait, and checks the markings, braids and bow show and stay on |
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |
 | `tests/competition_test.gd` | Automatic test: wins and loses show jumping and race cups, and checks prizes and trophies |
 | `tests/controls_test.gd` | Automatic test: U J H K keys, and clicks to change gait |
@@ -133,4 +137,4 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` `godot --headless --path . -s tests/controls_test.gd`, `godot --headless --path . -s tests/stable_test.gd`, `godot --headless --path . -s tests/breeds_test.gd`, `godot --headless --path . -s tests/names_test.gd`, `godot --headless --path . -s tests/settings_test.gd` `godot --headless --path . -s tests/day_night_test.gd` and `godot --headless --path . -s tests/map_photo_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/salon_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` `godot --headless --path . -s tests/controls_test.gd`, `godot --headless --path . -s tests/stable_test.gd`, `godot --headless --path . -s tests/breeds_test.gd`, `godot --headless --path . -s tests/names_test.gd`, `godot --headless --path . -s tests/settings_test.gd` `godot --headless --path . -s tests/day_night_test.gd` and `godot --headless --path . -s tests/map_photo_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.

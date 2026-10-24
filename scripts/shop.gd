@@ -1,6 +1,6 @@
 extends Node
 ## The stable's shop: a "Shop" button that opens a panel on the right with
-## new horses and fancy tack colours to buy with coins. Tapping a horse
+## new horses, fancy tack colours and salon treats to buy with coins. Tapping a horse
 ## shows it on the stand; tapping tack tries it on the horse in the stable.
 
 signal opened
@@ -8,7 +8,8 @@ signal closed
 
 const Tack := preload("res://scripts/tack.gd")
 const CoinBadge := preload("res://scripts/coin_badge.gd")
-const TACK_NAMES := {"pad": "Saddle pad", "trim": "Pad trim", "saddle": "Saddle", "bridle": "Bridle", "wraps": "Leg wraps"}
+const TACK_NAMES := {"pad": "Saddle pad", "trim": "Pad trim", "saddle": "Saddle", "bridle": "Bridle", "wraps": "Leg wraps",
+	"face": "Face marking", "legs": "Leg markings", "mane": "Mane", "tail": "Tail", "ribbon": "Ribbons", "glitter": "Glitter"}
 
 var _stable: Node3D   ## stable.gd: shows horses and tack while browsing
 var _panel: PanelContainer
@@ -68,7 +69,7 @@ func _fill() -> void:
 				_add_row(horse.name, kind, [horse.body, horse.get("pattern_color", horse.points)],
 					horse.price, Stable.owns(i), _preview_horse.bind(i), _buy_horse.bind(i))
 	else:
-		for key in Tack.OPTIONS:
+		for key in (Tack.TACK_KEYS if _tab == 1 else Tack.GROOM_KEYS):
 			var options: Array = Tack.OPTIONS[key]
 			for i in options.size():
 				if options[i].has("price"):
@@ -196,8 +197,8 @@ func _build_ui(root: Control) -> void:
 	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
 	tabs.add_theme_constant_override("separation", 10)
 	column.add_child(tabs)
-	for i in 2:
-		var tab := _button(["Horses", "Tack"][i], 20, _show_tab.bind(i), Vector2(150, 48))
+	for i in 3:
+		var tab := _button(["Horses", "Tack", "Salon"][i], 20, _show_tab.bind(i), Vector2(112, 48))
 		tabs.add_child(tab)
 		_tabs.append(tab)
 	var scroll := ScrollContainer.new()
