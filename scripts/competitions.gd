@@ -1,6 +1,6 @@
 extends Node3D
-## Competitions: Judge Clara by the arena runs a show jumping competition
-## and a trail race, each with a Bronze, Silver and Gold cup. Three other
+## Competitions: Judge Clara by the arena runs show jumping, a trail race,
+## dressage and cross-country, each with a Bronze, Silver and Gold cup. Three other
 ## riders enter every cup, and they get better from one cup to the next.
 ## Every place wins a rosette and coins; winning a cup wins its trophy and
 ## opens the next cup. Results are saved with the stable.
@@ -8,18 +8,23 @@ extends Node3D
 ## Show jumping uses the arena's course: the other riders have already
 ## jumped, and you have to beat their times (fewest faults first). The race
 ## follows the trail from the arena towards Flower Valley, through
-## checkpoints, against the other riders on their horses.
+## checkpoints, against the other riders on their horses. Dressage is a
+## test ridden in the arena, letter to letter (dressage.gd), and the
+## cross-country course has natural jumps out along the trail
+## (cross_country.gd); the other riders' scores are listed below.
 
 const Rider := preload("res://scripts/rider.gd")
 const Horse := preload("res://scripts/horse.gd")
 const Gate := preload("res://scripts/gate.gd")
 const Portrait := preload("res://scripts/portrait.gd")
+const Dressage := preload("res://scripts/dressage.gd")
+const CrossCountry := preload("res://scripts/cross_country.gd")
 const CHECK_COLOR := Color(0.35, 0.8, 1.0)   ## Race checkpoints are sky blue, unlike the golden places to find
 const TALK_DISTANCE := 5.0
 
 const JUDGE := {"name": "Judge Clara", "pos": Vector2(12, 7),
 	"look": {"body": 0, "skin": 4, "hair": 1, "hair_color": 2, "outfit": 1, "helmet": 0}}
-const EVENTS := {"jumping": "Show jumping", "race": "Trail race"}
+const EVENTS := {"jumping": "Show jumping", "race": "Trail race", "dressage": "Dressage", "xc": "Cross-country"}
 const CUPS := ["Bronze cup", "Silver cup", "Gold cup"]
 const CUP_COLORS := [Color(0.85, 0.55, 0.3), Color(0.82, 0.85, 0.9), Color(1.0, 0.8, 0.25)]
 const PLACES := ["1st", "2nd", "3rd", "4th"]
@@ -28,32 +33,34 @@ const ROSETTE_COLORS := [Color(1.0, 0.78, 0.2), Color(0.8, 0.83, 0.88), Color(0.
 const PRIZES := [[50, 30, 20, 10], [80, 45, 25, 10], [120, 60, 30, 10]]   ## Coins by cup and place
 
 ## The other riders in each cup: their horse (a coat from stable_data.gd),
-## their show jumping round (time, faults) and their race speed in m/s.
+## their show jumping round (time, faults), their race speed in m/s, their
+## dressage score (percent) and their cross-country round (average speed
+## in m/s, jumping penalties).
 ## A level 1 horse galloping well averages about 9.5 m/s over the race,
 ## so the Gold cup needs a trained horse.
 const RIVALS := [
 	[
-		{"name": "Ella", "horse": "Buttercup", "coat": 4, "jump": [27.0, 0], "speed": 7.6,
+		{"name": "Ella", "horse": "Buttercup", "coat": 4, "jump": [27.0, 0], "speed": 7.6, "dressage": 60.5, "xc": [6.8, 0],
 			"look": {"body": 0, "skin": 1, "hair": 0, "hair_color": 0, "outfit": 1, "helmet": 3}},
-		{"name": "Noah", "horse": "Pebble", "coat": 3, "jump": [23.5, 4], "speed": 8.2,
+		{"name": "Noah", "horse": "Pebble", "coat": 3, "jump": [23.5, 4], "speed": 8.2, "dressage": 64.0, "xc": [7.6, 20],
 			"look": {"body": 1, "skin": 3, "hair": 2, "hair_color": 2, "outfit": 0, "helmet": 1}},
-		{"name": "Zoe", "horse": "Clover", "coat": 1, "jump": [25.0, 0], "speed": 7.9,
+		{"name": "Zoe", "horse": "Clover", "coat": 1, "jump": [25.0, 0], "speed": 7.9, "dressage": 57.5, "xc": [7.2, 0],
 			"look": {"body": 0, "skin": 2, "hair": 1, "hair_color": 3, "outfit": 3, "helmet": 4}},
 	],
 	[
-		{"name": "Ruby", "horse": "Starlight", "coat": 7, "jump": [21.0, 0], "speed": 8.9,
+		{"name": "Ruby", "horse": "Starlight", "coat": 7, "jump": [21.0, 0], "speed": 8.9, "dressage": 67.0, "xc": [8.4, 0],
 			"look": {"body": 0, "skin": 0, "hair": 1, "hair_color": 3, "outfit": 0, "helmet": 5}},
-		{"name": "Leo", "horse": "Thunder", "coat": 2, "jump": [19.0, 4], "speed": 9.4,
+		{"name": "Leo", "horse": "Thunder", "coat": 2, "jump": [19.0, 4], "speed": 9.4, "dressage": 70.5, "xc": [9.0, 20],
 			"look": {"body": 1, "skin": 1, "hair": 4, "hair_color": 1, "outfit": 2, "helmet": 2}},
-		{"name": "Ivy", "horse": "Willow", "coat": 9, "jump": [22.5, 0], "speed": 9.1,
+		{"name": "Ivy", "horse": "Willow", "coat": 9, "jump": [22.5, 0], "speed": 9.1, "dressage": 65.5, "xc": [8.2, 0],
 			"look": {"body": 0, "skin": 4, "hair": 3, "hair_color": 5, "outfit": 1, "helmet": 3}},
 	],
 	[
-		{"name": "Grace", "horse": "Majesty", "coat": 8, "jump": [18.0, 0], "speed": 10.2,
+		{"name": "Grace", "horse": "Majesty", "coat": 8, "jump": [18.0, 0], "speed": 10.2, "dressage": 73.5, "xc": [9.5, 0],
 			"look": {"body": 0, "skin": 2, "hair": 0, "hair_color": 2, "outfit": 1, "helmet": 1}},
-		{"name": "Max", "horse": "Comet", "coat": 0, "jump": [17.2, 0], "speed": 10.8,
+		{"name": "Max", "horse": "Comet", "coat": 0, "jump": [17.2, 0], "speed": 10.8, "dressage": 77.0, "xc": [9.7, 0],
 			"look": {"body": 1, "skin": 0, "hair": 2, "hair_color": 0, "outfit": 0, "helmet": 2}},
-		{"name": "Chloe", "horse": "Aurora", "coat": 11, "jump": [16.0, 4], "speed": 10.5,
+		{"name": "Chloe", "horse": "Aurora", "coat": 11, "jump": [16.0, 4], "speed": 10.5, "dressage": 75.0, "xc": [10.1, 20],
 			"look": {"body": 0, "skin": 3, "hair": 1, "hair_color": 4, "outfit": 3, "helmet": 4}},
 	],
 ]
@@ -84,6 +91,8 @@ var _waved_off := false
 var _time := 0.0
 var _jump_results: Array = []   ## The other riders' rounds: {"name", "time", "faults"}
 var _race := {}                 ## The race being ridden (see _start_race)
+var _dressage: Dressage
+var _xc: CrossCountry
 
 var _dialog: PanelContainer
 var _words: Label
@@ -91,6 +100,7 @@ var _buttons: HBoxContainer
 var _status: Label
 var _status_panel: PanelContainer
 var _big: Label
+var _callout: Label             ## "Clear!", "Refusal!" and the like, fading out
 var _results: PanelContainer
 var _results_text: Label
 var _results_title: Label
@@ -107,16 +117,41 @@ func _ready() -> void:
 		_course.finished.connect(_on_course_finished)
 	_build_judge()
 	_build_ui()
+	_dressage = Dressage.new()
+	_dressage.name = "Dressage"
+	_dressage.world = _world
+	_dressage.horse = _horse
+	add_child(_dressage)
+	_xc = CrossCountry.new()
+	_xc.name = "CrossCountry"
+	_xc.world = _world
+	_xc.horse = _horse
+	add_child(_xc)
 
 
 func _process(delta: float) -> void:
 	_time += delta
 	_cup_marker.position.y = 2.75 + sin(_time * 3.0) * 0.1
 	_cup_marker.rotation.y += delta
+	_callout.modulate.a = maxf(_callout.modulate.a - delta * 0.6, 0.0)
 	if event == "race":
 		_race_step(delta)
 	elif event == "jumping":
 		_status.text = "%s · %s\n%s" % [EVENTS.jumping, CUPS[cup], _jumping_to_beat()]
+	elif event == "dressage":
+		if _dressage.step(delta):
+			_finish_dressage()
+		else:
+			var score := "   Score %.1f%%" % _dressage.percent() if _dressage._step > 0 else ""
+			_status.text = "%s · %s\n%s%s" % [EVENTS.dressage, CUPS[cup], _dressage.instruction(), score]
+	elif event == "xc":
+		var news := _xc.step(delta)
+		if news == "done":
+			_finish_xc()
+		else:
+			if news != "":
+				_shout(news)
+			_status.text = "%s · %s\n%s" % [EVENTS.xc, CUPS[cup], _xc.status() if _xc.started else "Ride through START when you're ready"]
 
 	# Talk to the judge when close (and not already competing).
 	var at := _horse.global_position
@@ -158,6 +193,14 @@ func enter(which: String, which_cup: int) -> void:
 		if _course:
 			_course.state = _course.State.READY
 		_say("The other riders have jumped.\nRide through START when you're ready!")
+	elif which == "dressage":
+		# The jumps make way for the dressage test.
+		_show_course(false)
+		_dressage.start(cup)
+		_say("Enter at A and follow the pink rings.\nRide each one in the gait shown!")
+	elif which == "xc":
+		_xc.start(cup)
+		_say("Jump the cross-country course in order, between the flags.\nRide through START when you're ready!")
 	else:
 		_start_race()
 
@@ -166,6 +209,11 @@ func enter(which: String, which_cup: int) -> void:
 func give_up() -> void:
 	if event == "race":
 		_end_race()
+	elif event == "dressage":
+		_dressage.stop()
+		_show_course(true)
+	elif event == "xc":
+		_xc.stop()
 	event = ""
 	_status_panel.visible = false
 	if _quests:
@@ -236,6 +284,56 @@ func _feedback(place: int, which_cup: int, trophy: bool, tip: String) -> String:
 		3:
 			return "Well ridden, and a rosette for you! " + tip
 	return "Don't worry, every rider starts somewhere. You'll do better next time! " + tip
+
+
+# --- Dressage and cross-country ---------------------------------------------------
+
+func _show_course(shown: bool) -> void:
+	if _course:
+		_course.visible = shown
+		_course.process_mode = Node.PROCESS_MODE_INHERIT if shown else Node.PROCESS_MODE_DISABLED
+
+
+func _finish_dressage() -> void:
+	var score := _dressage.percent()
+	var entries: Array = [{"name": "You", "score": score, "you": true}]
+	for rival in RIVALS[cup]:
+		entries.append({"name": "%s on %s" % [rival.name, rival.horse], "score": rival.dressage})
+	entries.sort_custom(func(a, b): return a.score > b.score)
+	var lines: Array[String] = []
+	var place := 0
+	for i in entries.size():
+		if entries[i].has("you"):
+			place = i + 1
+		lines.append("%s   %s   %.1f%%" % [PLACES[i], entries[i].name, entries[i].score])
+	if _dressage.harmony() >= 0.5:
+		lines.append("(with a harmony bonus of %.1f%% for a happy horse)" % _dressage.harmony())
+	_finish(place, lines, "Change gait just before each letter, ride right up to it, and keep your horse happy for harmony points.")
+
+
+func _finish_xc() -> void:
+	var mine := _xc.score(cup, _xc.time, _xc.penalties)
+	var entries: Array = [{"name": "You", "score": mine, "time": _xc.time, "you": true}]
+	for rival in RIVALS[cup]:
+		var seconds: float = CrossCountry.METRES / rival.xc[0]
+		entries.append({"name": "%s on %s" % [rival.name, rival.horse], "time": seconds,
+			"score": _xc.score(cup, seconds, rival.xc[1])})
+	entries.sort_custom(func(a, b): return a.score < b.score or (a.score == b.score and a.time < b.time))
+	var lines: Array[String] = []
+	var place := 0
+	for i in entries.size():
+		if entries[i].has("you"):
+			place = i + 1
+		var score_text: String = "clear" if entries[i].score == 0.0 else "%s penalties" % str(snappedf(entries[i].score, 0.1))
+		lines.append("%s   %s   %.1f s, %s" % [PLACES[i], entries[i].name, entries[i].time, score_text])
+	var tip := "Jump just before each fence: a jump too low is a refusal." if _xc.penalties > 0 \
+		else "Gallop between the jumps to beat the optimum time of %.0f s." % _xc.optimum_time(cup)
+	_finish(place, lines, tip)
+
+
+func _shout(text: String) -> void:
+	_callout.text = text
+	_callout.modulate.a = 1.6
 
 
 # --- The race -----------------------------------------------------------------
@@ -692,6 +790,16 @@ func _build_ui() -> void:
 	_big.position.y -= 80
 	_big.modulate.a = 0.0
 
+	_callout = _label("", 46)
+	_callout.add_theme_color_override("font_color", Color(1.0, 0.92, 0.6))
+	_callout.add_theme_constant_override("outline_size", 12)
+	root.add_child(_callout)
+	_callout.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_callout.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_callout.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_callout.position.y -= 150
+	_callout.modulate.a = 0.0
+
 	_results = PanelContainer.new()
 	_results.add_theme_stylebox_override("panel", _style(Color(0.1, 0.07, 0.14, 0.88)))
 	root.add_child(_results)
@@ -756,7 +864,7 @@ func _add_button(text: String, action: Callable, main := false) -> void:
 	var button := Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
-	button.custom_minimum_size = Vector2(170, 64)
+	button.custom_minimum_size = Vector2(150, 64)
 	button.add_theme_font_size_override("font_size", 18)
 	var style := _style(Color(1, 0.97, 0.9, 0.95) if main else Color(1, 1, 1, 0.15))
 	for state in ["normal", "hover", "pressed"]:
