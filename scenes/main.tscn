@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/competitions.gd" id="11_competitions"]
 [ext_resource type="Script" path="res://scripts/sky_cycle.gd" id="12_sky"]
 [ext_resource type="Script" path="res://scripts/bonding.gd" id="13_bonding"]
+[ext_resource type="Script" path="res://scripts/ambience.gd" id="15_ambience"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.22, 0.47, 0.88, 1)
@@ -76,6 +77,12 @@ environment_path = NodePath("../WorldEnvironment")
 
 [node name="World" type="Node3D" parent="."]
 script = ExtResource("1_world")
+
+[node name="Ambience" type="Node3D" parent="."]
+script = ExtResource("15_ambience")
+horse_path = NodePath("../Horse")
+world_path = NodePath("../World")
+sky_path = NodePath("../SkyCycle")
 
 [node name="Horse" type="CharacterBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 6)

@@ -33,6 +33,8 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Breeds and foals:** every horse has a breed (warmblood, Welsh pony, Fjord, Friesian, Arabian, Gypsy cob and more), drawn at that breed's size and build: ponies are small and stocky, thoroughbreds tall and slim. The shop also sells foals. A foal can't be ridden yet: it grows a little bigger every hour (also while the game is closed, and faster when it's well looked after), each carrot helps, and after about six hours it's grown up and ready to ride. Breeds are listed in `scripts/stable_data.gd`.
 
+**Sounds and music:** a gentle harp tune plays throughout. While you ride you hear hoofbeats in time with the horse's legs (soft on grass, clopping on the trail, hushed in the arena sand, splashing in the lake), snorts and whinnies, and the thump of landing a jump. Around you there's wind, birdsong by day, crickets at night and rain when it rains. In the stable a carrot crunches and your horse nickers when you pat it. Every sound and the music are made from scratch by `tools/make_sounds.py` (run it with Python to remake them), so there are no recordings to credit.
+
 **Quests:** six people around the countryside need help. Ride up to someone to talk: a gold **!** above their head means they have a quest, and a **?** means your reward is waiting. Lily by the arena wants a clear round, Farmer Tom at the windmill has lost some apples, Rosa at the lake has a letter for Ben at the Wild Horse Meadow (who then wants a gallop), Mia in Flower Valley wants flowers, and Old Sam at the Stone Circle lost a golden horseshoe. Coach Anna by the arena gives three riding lessons (walk, trot and halt; canter; jumping): follow the blue cones in the gait she asks for. Your quests are listed at the top right. People and quests are listed at the top of `scripts/quests.gd`.
 
 **Training:** every horse gets better at what you do with it. Cantering and galloping train **speed** (a faster canter and gallop), jumping trains **jumping** (higher jumps, with extra for clearing a course fence), and riding anywhere trains **stamina** (a longer gallop). Galloping uses up the horse's breath, shown as a blue bar above the gait buttons; when it runs out the horse drops to a canter until it has its breath back. Each skill goes from level 1 to 10, shown under **Training** in the stable. The numbers are at the top of `scripts/stable_data.gd` and `scripts/horse.gd`.
@@ -92,6 +94,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
 | `scripts/sky_cycle.gd`, `shaders/sky.gdshader` | Day and night (a day lasts 12 minutes), sunrise and sunset, moon, stars and fireflies, clouds, rain and rainbows |
 | `scripts/bonding.gd`, `scripts/on_foot.gd`, `scripts/hearts.gd` | Bonding while you ride: hearts and mood, tricks at a halt, getting off to walk and whistling your horse over |
+| `scripts/sound.gd`, `scripts/ambience.gd`, `assets/audio/`, `tools/make_sounds.py` | Music and sounds: the Sound autoload plays them, the Ambience node does hoofbeats and outdoor sounds while riding, and the tool makes the sound files |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
 | `scripts/explore.gd`, `shaders/water.gdshader`, `shaders/flag.gdshader` | The places to discover (lake, windmill, stone circle and the rest), the lake's water and the lookout's flag |
@@ -101,6 +104,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
 | `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
 | `tests/bonding_test.gd` | Automatic test: hearts grow with care, tricks unlock and play, and a whistle brings the horse over |
+| `tests/sound_test.gd` | Automatic test: every sound loads, hoofbeats keep time and splash in water, and caring for the horse makes its sounds |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |
