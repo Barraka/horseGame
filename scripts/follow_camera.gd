@@ -26,6 +26,11 @@ func _ready() -> void:
 	global_position = _target.global_position + Vector3.UP * height
 
 
+## Follow someone else (you on foot, or back to the horse).
+func follow(target: Node3D) -> void:
+	_target = target
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:

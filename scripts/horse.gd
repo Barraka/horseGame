@@ -8,6 +8,8 @@ extends CharacterBody3D
 signal gait_changed(target_gait: int)
 signal jump_refused
 signal out_of_breath   ## Galloped too long: drops to a canter to get its breath back
+signal came_over       ## Trotted over to whoever whistled
+signal trick_done(trick: String)
 
 const GAITS := [
 	{"name": "Halt",   "speed": 0.0,  "accel": 0.0, "turn": 1.8, "jump": 0.0},
@@ -26,6 +28,10 @@ const REST_SECONDS := 12.0             ## Out of breath to fresh at a trot or sl
 const CLICK_SLOP := 8.0                ## Pixels a click may move and still count as a click
 const GALLOP_AGAIN := 0.25             ## Breath needed to start galloping again
 const BRAKE := 4.0
+## Tricks (Stable.TRICKS), done at a halt: how long each takes.
+const TRICK_SECONDS := {"bow": 2.8, "spin": 2.6, "rear": 2.4}
+const WANDER := 9.0           ## How far a horse left on its own strolls from where it was left
+const CALL_STOP := 2.4        ## A called horse stops this close to you
 
 ## Animation clips are matched by keyword, so most horse packs work as-is.
 const GAIT_CLIPS := [
@@ -81,6 +87,14 @@ var current_gait := 0
 var speed := 0.0
 var jumping := false
 var energy := 1.0   ## Breath for galloping, from 0 to 1
+var ridden := true  ## False while you're on foot: the horse grazes and strolls about
+var trick := ""     ## The trick being done, if any
+var _caller: Node3D        # Who whistled, while the horse comes over
+var _home := Vector3.ZERO  # Where it was left
+var _stroll_to := Vector3.INF
+var _graze_left := 0.0
+var _trick_time := 0.0
+var _rng := RandomNumberGenerator.new()
 
 var _visual: Node3D
 var _body: Node3D    # The horse model, scaled to its breed; tack and rider stay unscaled
@@ -204,6 +218,14 @@ func set_tack_visible(on: bool) -> void:
 		_tack.set_shown(on)
 
 
+## Seat the rider in the saddle, or take them off (getting off to walk).
+func set_rider_visible(on: bool) -> void:
+	if _rider:
+		_rider.visible = on
+		_tack.rider = _rider if on else null
+		_follow_back()
+
+
 ## Dress the horse in tack of these colours (see tack.gd).
 func set_tack(config: Dictionary) -> void:
 	tack = config
@@ -260,7 +282,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if button.pressed:
 		_click_from = button.position
-	elif button.position.distance_to(_click_from) < CLICK_SLOP and is_physics_processing():
+	elif button.position.distance_to(_click_from) < CLICK_SLOP and is_physics_processing() and ridden and trick == "":
 		set_gait(target_gait + (1 if button.button_index == MOUSE_BUTTON_LEFT else -1))
 
 
@@ -280,10 +302,22 @@ func _read_buttons() -> void:
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
-	_read_buttons()
-	var forward := Input.is_action_pressed("ride_forward")
-	var back := Input.is_action_pressed("ride_back")
-	var steer := Input.get_axis("steer_left", "steer_right")
+	if trick != "":
+		# Standing still for a trick (animated in _process).
+		speed = 0.0
+		velocity = Vector3(0, -1.0 if is_on_floor() else velocity.y - GRAVITY * delta, 0)
+		move_and_slide()
+		return
+	var forward := false
+	var back := false
+	var steer := 0.0
+	if ridden:
+		_read_buttons()
+		forward = Input.is_action_pressed("ride_forward")
+		back = Input.is_action_pressed("ride_back")
+		steer = Input.get_axis("steer_left", "steer_right")
+	else:
+		steer = _free_steer(delta)
 
 	# Pressing forward at a halt starts a walk.
 	if forward and target_gait == 0:
@@ -324,9 +358,138 @@ func _physics_process(delta: float) -> void:
 		jumping = false
 		_landed()
 	_breathe(delta)
-	_wear(Vector2(global_position.x - from.x, global_position.z - from.z).length())
+	if ridden:
+		_wear(Vector2(global_position.x - from.x, global_position.z - from.z).length())
 
 	_animate(delta)
+
+
+# --- On its own, and tricks ---------------------------------------------------
+
+## You got off: the horse stays about here, grazing and strolling.
+func let_go() -> void:
+	ridden = false
+	_caller = null
+	_home = global_position
+	_stroll_to = Vector3.INF
+	_graze_left = _rng.randf_range(2.0, 4.0)
+	set_gait(0)
+
+
+## Someone whistled: trot over to them and stop alongside.
+func call_over(caller: Node3D) -> void:
+	_caller = caller
+
+
+## Whether the horse is on its way over after a whistle.
+func is_coming() -> bool:
+	return _caller != null
+
+
+## Back in the saddle.
+func take_back() -> void:
+	ridden = true
+	_caller = null
+	set_gait(0)
+
+
+## Picks the gait and returns the steering while nobody rides.
+func _free_steer(delta: float) -> float:
+	var goal: Vector3
+	var gait := 1
+	if _caller:
+		goal = _caller.global_position
+		var away := Vector2(goal.x - global_position.x, goal.z - global_position.z).length()
+		if away < CALL_STOP:
+			_caller = null
+			_home = global_position
+			_graze_left = _rng.randf_range(5.0, 9.0)
+			set_gait(0)
+			came_over.emit()
+			return 0.0
+		gait = 3 if away > 30.0 else (2 if away > 7.0 else 1)
+	else:
+		if _graze_left > 0.0:
+			_graze_left -= delta
+			if target_gait != 0:
+				set_gait(0)
+			return 0.0
+		if _stroll_to == Vector3.INF:
+			var angle := _rng.randf() * TAU
+			_stroll_to = _home + Vector3(cos(angle), 0, sin(angle)) * _rng.randf_range(2.0, WANDER)
+		goal = _stroll_to
+		if Vector2(goal.x - global_position.x, goal.z - global_position.z).length() < 1.2:
+			_stroll_to = Vector3.INF
+			_graze_left = _rng.randf_range(4.0, 9.0)
+			set_gait(0)
+			return 0.0
+	if target_gait != gait:
+		set_gait(gait)
+	var facing := atan2(-(goal.x - global_position.x), -(goal.z - global_position.z))
+	return -clampf(wrapf(facing - rotation.y, -PI, PI) * 2.0, -1.0, 1.0)
+
+
+## Do a trick at a halt. Returns false while moving or busy.
+func perform(which: String) -> bool:
+	if trick != "" or jumping or not TRICK_SECONDS.has(which) or absf(speed) > 0.3:
+		return false
+	if is_inside_tree() and is_physics_processing() and not is_on_floor():
+		return false
+	trick = which
+	_trick_time = 0.0
+	speed = 0.0
+	if target_gait != 0:
+		set_gait(0)
+	return true
+
+
+func _process(delta: float) -> void:
+	if trick != "" and not Engine.is_editor_hint():
+		_animate_trick(delta)
+
+
+func _animate_trick(delta: float) -> void:
+	_trick_time += delta
+	var length: float = TRICK_SECONDS[trick]
+	var t := clampf(_trick_time / length, 0.0, 1.0)
+	var hold := smoothstep(0.0, 0.28, t) * (1.0 - smoothstep(0.72, 1.0, t))
+	var gait_model := 0
+	var tilt := 0.0
+	var pivot := Vector3.ZERO
+	match trick:
+		"rear":
+			# Up on the hind legs, front hooves pawing the air.
+			tilt = (0.6 + sin(_trick_time * 9.0) * 0.04) * hold
+			pivot = Vector3(0, 0, 0.82 * body_shape.z)
+			gait_model = GAIT_SET_JUMP   # The gallop's first frame: hind legs planted, front ones folded
+		"bow":
+			# Front end down low with the head nearly at the ground.
+			tilt = -0.22 * hold
+			pivot = Vector3(0, 0, 0.85 * body_shape.z)
+		"spin":
+			# Turn right round on the spot, walking.
+			rotation.y += TAU * delta / length * (1.0 - absf(t - 0.5)) * 1.333
+			gait_model = 0
+	_visual.transform = Transform3D(Basis(Vector3.RIGHT, tilt), Vector3.ZERO)
+	_visual.position = pivot - _visual.basis * pivot
+	if not _set_models.is_empty():
+		_show_gait_model(gait_model)
+		var player := _set_players[gait_model]
+		if trick == "spin":
+			if not player.is_playing():
+				player.play()
+			player.speed_scale = 1.0
+			player.advance(delta)
+		else:
+			player.seek(0.0, true)
+			player.pause()
+		_follow_back()
+	if t >= 1.0:
+		var done := trick
+		trick = ""
+		_visual.transform = Transform3D.IDENTITY
+		stand()
+		trick_done.emit(done)
 
 
 ## Galloping uses up breath; slower gaits get it back. Out of breath, the

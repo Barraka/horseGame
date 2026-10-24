@@ -16,6 +16,8 @@ var _bars := {}           ## Care key -> ProgressBar
 var _mood: Label
 var _skills := {}         ## Skill -> [level Label, ProgressBar to the next level]
 var _growth: Array        ## [line, ProgressBar]: how grown up a foal is
+var _hearts: HBoxContainer
+var _trick_buttons := {}  ## Trick -> Button
 var _panel: PanelContainer
 var _toast: Label
 var _brush_button: Button
@@ -33,6 +35,7 @@ func setup(horse: Node3D, camera: Camera3D, ui_root: Control) -> void:
 	_build_ui(ui_root)
 	_build_brush()
 	Stable.care_changed.connect(func(i): if i == _index: _refresh())
+	Stable.bond_changed.connect(func(i, _new): if i == _index: _refresh())
 
 
 func show_horse(index: int) -> void:
@@ -111,6 +114,20 @@ func _pet() -> void:
 	var horse_name: String = Stable.horse_name(_index)
 	_say(["%s nuzzles you." % horse_name, "%s loves a pat." % horse_name, "Good horse, %s!" % horse_name].pick_random())
 	_puff(_neck(), Color(1.0, 0.4, 0.6), 5, _heart_texture)
+
+
+func _trick(trick: String) -> void:
+	_set_brushing(false)
+	var horse_name: String = Stable.horse_name(_index)
+	if Stable.is_foal(_index):
+		_say("%s is too little for tricks" % horse_name)
+	elif not Stable.knows_trick(_index, trick):
+		_say("%s learns this at %d hearts" % [horse_name, Stable.TRICKS[trick].hearts])
+	elif Stable.happiness(_index) < Stable.UNHAPPY:
+		_say("%s isn't in the mood" % horse_name)
+	elif _horse.perform(trick):
+		Stable.add_bond(_index, Stable.BOND_TRICK)
+		_say(["Well done, %s!", "Bravo, %s!", "Clever %s!"].pick_random() % horse_name)
 
 
 func _set_brushing(on: bool) -> void:
@@ -296,6 +313,10 @@ func _refresh() -> void:
 	if Stable.is_foal(_index) and happy >= 0.5:
 		_mood.text = "%s is growing up" % horse_name
 	_horse.set_dirt(1.0 - care.clean)
+	_hearts.show_hearts(_index)
+	for trick in _trick_buttons:
+		var known: bool = Stable.knows_trick(_index, trick) and not Stable.is_foal(_index)
+		_trick_buttons[trick].modulate = Color.WHITE if known else Color(1, 1, 1, 0.5)
 
 
 func _say(text: String) -> void:
@@ -323,6 +344,17 @@ func _build_ui(root: Control) -> void:
 
 	_growth = _bar_row(column, "Grow", Color(0.55, 0.9, 0.45), 180.0)
 
+	var bond := HBoxContainer.new()
+	bond.add_theme_constant_override("separation", 10)
+	column.add_child(bond)
+	var bond_title := _label("Bond", 20)
+	bond_title.custom_minimum_size.x = 84
+	bond_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	bond.add_child(bond_title)
+	_hearts = preload("res://scripts/hearts.gd").new()
+	_hearts.heart_size = 26.0
+	bond.add_child(_hearts)
+
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
 	column.add_child(buttons)
@@ -330,6 +362,17 @@ func _build_ui(root: Control) -> void:
 	_brush_button = _button("Brush", func(): _set_brushing(not brushing))
 	buttons.add_child(_brush_button)
 	buttons.add_child(_button("Pet", _pet))
+
+	# Tricks the horse has learnt, to show off here too.
+	var tricks := HBoxContainer.new()
+	tricks.add_theme_constant_override("separation", 8)
+	column.add_child(tricks)
+	for trick in Stable.TRICKS:
+		var button := _button(Stable.TRICKS[trick].name, _trick.bind(trick))
+		button.custom_minimum_size = Vector2(88, 44)
+		button.add_theme_font_size_override("font_size", 18)
+		tricks.add_child(button)
+		_trick_buttons[trick] = button
 
 	# Training: a level and a bar towards the next level for each skill.
 	var heading := _label("Training", 20)

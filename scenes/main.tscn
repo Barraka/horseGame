@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/quests.gd" id="10_quests"]
 [ext_resource type="Script" path="res://scripts/competitions.gd" id="11_competitions"]
 [ext_resource type="Script" path="res://scripts/sky_cycle.gd" id="12_sky"]
+[ext_resource type="Script" path="res://scripts/bonding.gd" id="13_bonding"]
 [ext_resource type="Script" path="res://scripts/beach.gd" id="14_beach"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
@@ -172,3 +173,10 @@ world_path = NodePath("../World")
 horse_path = NodePath("../Horse")
 course_path = NodePath("../Course")
 quests_path = NodePath("../Quests")
+
+[node name="Bonding" type="Node" parent="."]
+script = ExtResource("13_bonding")
+horse_path = NodePath("../Horse")
+camera_path = NodePath("../CameraRig")
+world_path = NodePath("../World")
+hud_path = NodePath("../HUD")
