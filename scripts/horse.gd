@@ -191,6 +191,8 @@ func set_body_shape(shape: Vector3) -> void:
 	body_shape = shape
 	if _body:
 		_body.scale = shape
+	if _tack:
+		_tack.set_body_scale(shape)
 	if _saddle:
 		_rest_pitch = _back_pitch(_back_points(0, 0.0))
 		_follow_back()
@@ -508,6 +510,7 @@ func _build_saddle() -> void:
 		_rider.rotation.y = PI   # The rider model faces +Z, the horse -Z
 		_rider.position.y = SADDLE_HEIGHT - _rider.HIP_HEIGHT
 		_tack.rider = _rider
+	_tack.body_scale = body_shape
 	_tack.build(tack, _saddle)
 	_rest_pitch = _back_pitch(_back_points(0, 0.0))
 	_follow_back()

@@ -27,6 +27,10 @@ var _turntable: Node3D
 var _barn: Node3D
 var _name_label: Label
 var _coat_label: Label
+var _name_dialog: PanelContainer
+var _name_title: Label
+var _name_edit: LineEdit
+var _naming := -1   ## The horse being named
 var _ride_button: Button
 var _dots: HBoxContainer
 var _drag_spin := 0.0
@@ -59,7 +63,7 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _care.brushing:
+	if _care.brushing or _name_dialog.visible:
 		return   # Dragging brushes the horse instead
 	if event is InputEventScreenDrag or (event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT):
 		_drag_spin += event.relative.x * 0.008
@@ -83,7 +87,7 @@ func _browse(step: int) -> void:
 func _show_horse() -> void:
 	var horse: Dictionary = Stable.HORSES[_index]
 	_horse.show_coat(horse)
-	_name_label.text = horse.name
+	_name_label.text = Stable.horse_name(_index)
 	_show_growth()
 	_horse.set_dirt(1.0 - Stable.care[_index].clean)
 	_care.show_horse(_index)
@@ -103,7 +107,7 @@ func _show_growth() -> void:
 	_coat_label.text = "%s%s · %s" % [horse.breed, " foal" if Stable.is_foal(_index) else "", horse.coat]
 	_ride_button.disabled = not Stable.can_ride(_index)
 	if Stable.can_ride(_index):
-		_ride_button.text = "Ride %s" % horse.name
+		_ride_button.text = "Ride %s" % Stable.horse_name(_index)
 	else:
 		_ride_button.text = "Growing up: %d%%" % int(Stable.grown(_index) * 100.0)
 
@@ -143,7 +147,64 @@ func end_preview() -> void:
 
 
 func horse_name() -> String:
-	return Stable.HORSES[_index].name
+	return Stable.horse_name(_index)
+
+
+# --- Naming a horse -------------------------------------------------------------
+
+## Open the box for giving a horse a name. `new_horse` is for one just
+## bought, which gets a welcome instead.
+func ask_name(index: int, new_horse := false) -> void:
+	_naming = index
+	var horse: Dictionary = Stable.HORSES[index]
+	if new_horse:
+		_name_title.text = "Welcome home! What will you call your new %s?" % ("foal" if horse.get("foal", false) else "horse")
+	else:
+		_name_title.text = "A new name for %s?" % Stable.horse_name(index)
+	_name_edit.text = Stable.horse_name(index)
+	_name_dialog.visible = true
+	_name_edit.grab_focus()
+	_name_edit.select_all()
+
+
+func _keep_name(_text := "") -> void:
+	if _naming < 0:
+		return
+	Stable.rename(_naming, _name_edit.text)
+	_naming = -1
+	_name_dialog.visible = false
+	_name_edit.release_focus()
+	_show_horse()
+
+
+func _build_name_dialog(root: Control) -> void:
+	_name_dialog = PanelContainer.new()
+	_name_dialog.add_theme_stylebox_override("panel", _style(Color(0.1, 0.07, 0.14, 0.92)))
+	root.add_child(_name_dialog)
+	_name_dialog.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_name_dialog.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_name_dialog.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_name_dialog.visible = false
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 14)
+	_name_dialog.add_child(column)
+	_name_title = _label("", 24)
+	_name_title.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_name_title.custom_minimum_size.x = 420
+	column.add_child(_name_title)
+	_name_edit = LineEdit.new()
+	_name_edit.max_length = Stable.MAX_NAME
+	_name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_edit.custom_minimum_size = Vector2(320, 60)
+	_name_edit.add_theme_font_size_override("font_size", 32)
+	_name_edit.text_submitted.connect(_keep_name)
+	var middle := CenterContainer.new()
+	middle.add_child(_name_edit)
+	column.add_child(middle)
+	var ok := _button("That's the name!", 22, _keep_name, Vector2(260, 60))
+	var centre := CenterContainer.new()
+	centre.add_child(ok)
+	column.add_child(centre)
 
 
 func _open_rider_creator() -> void:
@@ -259,7 +320,15 @@ func _build_ui() -> void:
 	_name_label = _label("", 40)
 	_coat_label = _label("", 22)
 	_coat_label.modulate = Color(1, 0.95, 0.85, 0.85)
-	info.add_child(_name_label)
+	# The name, with a small button beside it to change it.
+	var name_row := HBoxContainer.new()
+	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	name_row.add_theme_constant_override("separation", 10)
+	name_row.add_child(_name_label)
+	var rename := _button("Rename", 16, func(): ask_name(_index), Vector2(0, 36))
+	rename.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	name_row.add_child(rename)
+	info.add_child(name_row)
 	info.add_child(_coat_label)
 	_dots = HBoxContainer.new()
 	_dots.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -316,6 +385,7 @@ func _build_ui() -> void:
 		_care.set_panel_visible(true)
 		_picker.visible = true
 		_show_horse())
+	_build_name_dialog(root)   # Last, so it opens on top of everything
 
 
 func _label(text: String, font_size: int) -> Label:

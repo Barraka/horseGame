@@ -61,7 +61,7 @@ func fill_stalls(selected: int) -> void:
 		_horses[index].set_dirt(1.0 - Stable.care[index].clean)
 		var plate: Label3D = get_node_or_null("Plate%d" % slot)
 		if plate:
-			plate.text = Stable.HORSES[index].name
+			plate.text = Stable.horse_name(index)
 
 
 ## Where a stall is: side -1 is on the left looking down the aisle.
@@ -85,7 +85,7 @@ func _stable_horse(index: int, slot: int) -> Node3D:
 	var plate := Label3D.new()
 	plate.name = "Plate%d" % slot
 	add_child(plate)
-	plate.text = Stable.HORSES[index].name
+	plate.text = Stable.horse_name(index)
 	plate.font_size = 40
 	plate.pixel_size = 0.0028
 	plate.modulate = Color(1, 0.95, 0.8)
