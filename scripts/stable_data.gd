@@ -111,6 +111,7 @@ signal coins_changed(coins: int, gained: int)
 signal level_up(index: int, skill: String, level: int)
 signal grown_up(index: int)
 signal bond_changed(index: int, new_heart: bool)
+signal did(what: String, amount: float)   ## Something worth counting happened (for daily.gd's tasks)
 
 var selected := 0
 var care: Array[Dictionary] = []
@@ -317,8 +318,11 @@ func quest_state(id: String) -> String:
 ## Start, move on or finish a quest. Progress is whatever the quest counts
 ## (things collected, metres galloped).
 func set_quest(id: String, state: String, progress: Variant = null) -> void:
+	var was := quest_state(id)
 	quests[id] = {"state": state, "progress": progress}
 	_save()
+	if state == "done" and was != "done":
+		note("quest")
 
 
 func skill_level(index: int, skill: String) -> int:
@@ -368,7 +372,17 @@ func record_result(event: String, cup: int, place: int) -> bool:
 	if best == 0 or place < best:
 		results["%s:%d" % [event, cup]] = place
 	_save()
+	note("compete")
+	if place <= 3:
+		note("podium")
 	return place == 1 and best != 1
+
+
+## Tell whoever is counting (daily.gd) that something happened: "feed",
+## "pet", "brush", "ride" and "gallop" (metres), "jump", "clear_round",
+## "trick", "compete", "podium", "quest" or "discover".
+func note(what: String, amount := 1.0) -> void:
+	did.emit(what, amount)
 
 
 ## Remember a place as found. Returns false if it was found before.
@@ -377,6 +391,7 @@ func discover(id: String) -> bool:
 		return false
 	discovered.append(id)
 	_save()
+	note("discover")
 	return true
 
 
@@ -384,6 +399,7 @@ func discover(id: String) -> bool:
 func feed(index: int) -> bool:
 	if care[index].food > 0.95:
 		return false
+	note("feed")
 	add_bond(index, BOND_FEED, false)
 	_change(index, "food", FEED_AMOUNT)
 	_change(index, "love", 0.05)
@@ -395,11 +411,14 @@ func feed(index: int) -> bool:
 ## Brush away `amount` of dirt.
 func brush(index: int, amount: float) -> void:
 	var cleaned := minf(amount, 1.0 - care[index].clean)
+	if cleaned > 0.0:
+		note("brush", cleaned)
 	add_bond(index, cleaned * BOND_BRUSH, false)
 	_change(index, "clean", amount)
 
 
 func pet(index: int) -> void:
+	note("pet")
 	if care[index].love < 0.95:
 		add_bond(index, BOND_PET, false)
 	_change(index, "love", PET_AMOUNT)
@@ -409,6 +428,7 @@ func pet(index: int) -> void:
 func ride(index: int, metres: float) -> void:
 	care[index].food = clampf(care[index].food - RIDE_FOOD_PER_KM * metres / 1000.0, 0.0, 1.0)
 	care[index].clean = clampf(care[index].clean - RIDE_DIRT_PER_KM * metres / 1000.0, 0.0, 1.0)
+	note("ride", metres)
 	add_bond(index, BOND_PER_KM * metres / 1000.0, false)
 	care_changed.emit(index)
 	_coin_metres += metres

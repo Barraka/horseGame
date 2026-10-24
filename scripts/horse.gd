@@ -454,6 +454,9 @@ func perform(which: String) -> bool:
 		return false
 	trick = which
 	_trick_time = 0.0
+	var stable := get_node_or_null("/root/Stable")
+	if stable:
+		stable.note("trick")
 	speed = 0.0
 	if target_gait != 0:
 		set_gait(0)
@@ -525,6 +528,7 @@ func _landed() -> void:
 	var stable := get_node_or_null("/root/Stable")
 	if stable:
 		stable.train(stable.selected, "jumping", stable.JUMP_POINTS)
+		stable.note("jump")
 
 
 ## Riding makes the horse hungry and muddy, and trains it, a little at a time.
@@ -536,6 +540,8 @@ func _wear(metres: float) -> void:
 	if not stable:
 		return
 	_speed_points += metres * stable.SPEED_POINTS_PER_M[current_gait]
+	if current_gait == GAITS.size() - 1:
+		stable.note("gallop", metres)
 	_stamina_points += metres * stable.STAMINA_POINTS_PER_M
 	if _ridden >= 25.0:
 		stable.train(stable.selected, "speed", _speed_points, false)

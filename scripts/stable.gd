@@ -10,6 +10,7 @@ const Shop := preload("res://scripts/shop.gd")
 const TrophyShelf := preload("res://scripts/trophy_shelf.gd")
 const CoinBadge := preload("res://scripts/coin_badge.gd")
 const StableBarn := preload("res://scripts/stable_barn.gd")
+const DailyPanel := preload("res://scripts/daily_panel.gd")
 const RIDE_SCENE := "res://scenes/main.tscn"
 const RIDER_SCENE := "res://scenes/rider_creator.tscn"
 const CAMERA_POS := Vector3(4.5, 1.8, 5.1)
@@ -22,6 +23,7 @@ var _tack: Node
 var _salon: Node   ## The grooming salon (another tack_panel.gd)
 var _shop: Node
 var _trophies: Node
+var _daily: Node
 var _picker: PanelContainer
 var _camera: Camera3D
 var _turntable: Node3D
@@ -369,24 +371,36 @@ func _build_ui() -> void:
 	add_child(_trophies)
 	_trophies.setup(root)
 	# One panel on the right at a time; the shop takes the whole stand.
+	_daily = DailyPanel.new()
+	add_child(_daily)
+	_daily.setup(root)
 	_tack.opened.connect(func():
 		_shop.close()
 		_salon.close()
-		_trophies.close())
+		_trophies.close()
+		_daily.close())
 	_salon.opened.connect(func():
 		_shop.close()
 		_tack.close()
 		_trophies.close()
+		_daily.close()
 		_picker.visible = false)   # The salon reaches down over the horse picker
 	_salon.closed.connect(func(): _picker.visible = not _shop.is_open())
 	_trophies.opened.connect(func():
 		_shop.close()
 		_salon.close()
-		_tack.close())
+		_tack.close()
+		_daily.close())
+	_daily.opened.connect(func():
+		_shop.close()
+		_salon.close()
+		_tack.close()
+		_trophies.close())
 	_shop.opened.connect(func():
 		_tack.close()
 		_salon.close()
 		_trophies.close()
+		_daily.close()
 		_care.set_panel_visible(false)
 		_picker.visible = false)
 	var settings := preload("res://scripts/settings_panel.gd").new()
