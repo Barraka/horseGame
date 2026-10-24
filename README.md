@@ -20,7 +20,7 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 
 On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons bottom right; drag on the open screen to look around.
 
-**Stable:** the game opens in your stable. Use the arrows (or ← / →) to look through your six horses, drag to turn the horse around, and press **Ride** (or Enter). The **Stable** button at the top of the riding screen takes you back. The game remembers which horse you picked. To add or change horses, edit the list in `scripts/stable_data.gd`.
+**Stable:** the game opens in your stable, a wooden barn with your horses in their stalls, their names on the doors. The horse you're looking at stands in the aisle. Use the arrows (or ← / →) to look through your six horses, drag to turn the horse around, and press **Ride** (or Enter). The **Stable** button at the top of the riding screen takes you back. The game remembers which horse you picked. To add or change horses, edit the list in `scripts/stable_data.gd`.
 
 **Horse care:** in the stable, the panel on the left shows how full, clean and loved the horse is. **Feed** gives it a carrot, **Pet** gives it a pat, and **Brush** lets you rub the mud off by dragging over the horse (press **Done** to go back to turning it). Riding makes a horse hungry and muddy, and food and love slowly run down while you're away, so come back and look after your horses. The rates are at the top of `scripts/stable_data.gd`.
 
@@ -64,6 +64,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | --- | --- |
 | `scenes/main.tscn` | The game scene: sky and lighting, world, horse, camera, course, HUD |
 | `scenes/stable.tscn`, `scripts/stable.gd` | The stable screen where you pick a horse |
+| `scripts/stable_barn.gd` | The stable building: aisle, stalls with your horses in them, lanterns, hay and tack |
 | `scripts/stable_data.gd` | Your horses (names and coat colours), which one you ride, and how well each is looked after |
 | `scripts/horse_care.gd` | Feeding, brushing and petting in the stable |
 | `scripts/tack.gd` | The tack (saddle pad, saddle, stirrups, bridle, reins, leg wraps), built from simple shapes and moved along with the horse; add colours to its lists |
@@ -86,7 +87,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
-| `scripts/explore.gd`, `shaders/water.gdshader` | The places to discover (lake, windmill, stone circle and the rest) and the lake's water |
+| `scripts/explore.gd`, `shaders/water.gdshader`, `shaders/flag.gdshader` | The places to discover (lake, windmill, stone circle and the rest), the lake's water and the lookout's flag |
+| `scripts/rocks.gd`, `shaders/rock.gdshader` | Lumpy, mossy rocks and standing stones made in code |
 | `scripts/course.gd`, `scripts/fence.gd`, `scripts/gate.gd` | Show jumping course, scoring, fences and gates |
 | `scripts/follow_camera.gd` | Third-person camera |
 | `scripts/hud.gd`, `scripts/virtual_joystick.gd` | On-screen display and touch controls |
@@ -98,7 +100,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/controls_test.gd` | Automatic test: U J H K keys, and clicks to change gait |
 | `tests/breeds_test.gd` | Automatic test: breed sizes, and a foal growing up until it can be ridden |
 | `tests/training_test.gd` | Automatic test: trains a horse and checks it gallops faster, jumps higher and lasts longer |
+| `tests/stable_test.gd` | Automatic test: checks your horses stand in their stalls and the one in the aisle's stall is empty |
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` and `godot --headless --path . -s tests/controls_test.gd` and `godot --headless --path . -s tests/breeds_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` `godot --headless --path . -s tests/controls_test.gd`, `godot --headless --path . -s tests/stable_test.gd` and `godot --headless --path . -s tests/breeds_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.

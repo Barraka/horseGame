@@ -15,7 +15,7 @@ extends Node3D
 @export var arena_center := Vector3(0, 0, -35)
 @export var arena_size := Vector2(56, 66)   ## Width (x) and length (z)
 @export var tree_count := 560
-@export var rock_count := 150
+@export var rock_count := 240   ## In groups of two to five
 @export var flower_count := 20000   ## Tries; most land outside the drifts
 
 ## Places to find while exploring, as (x, z) positions. "the" goes before
@@ -45,7 +45,9 @@ const TRAIL := [
 const TRAIL_WIDTH := 3.0
 const TREE_VARIANTS := 3           ## Different-looking trees of each kind
 const PLANTING_SQUARE := 120.0     ## Trees are drawn in squares this big, so ones out of view are skipped
+const ROCK_VARIANTS := 6
 const Trees := preload("res://scripts/trees.gd")
+const Rocks := preload("res://scripts/rocks.gd")
 const GRASS_DARK := Color(0.2, 0.44, 0.12)
 const GRASS_LIGHT := Color(0.47, 0.66, 0.2)
 const TRAIL_DARK := Color(0.56, 0.44, 0.3)
@@ -59,6 +61,7 @@ var trail_points := PackedVector2Array()   ## The trail's centre line, a point e
 var _trail_mask := PackedFloat32Array()    ## 1 on the trail, fading to 0, on a 1 m grid
 var _ground_material: ShaderMaterial
 var _plantings := {}               ## [tree mesh key, square] -> [transforms, colours]
+var _flower_material: ShaderMaterial
 var _tree_meshes := {}             ## "kind:variant" -> Mesh
 
 
@@ -74,9 +77,9 @@ func _ready() -> void:
 	_build_arena()
 	_scatter_trees()
 	_scatter_bushes()
+	_scatter_rocks()
 	_build_plantings()
 	_build_flower_beds()
-	_scatter_rocks()
 	_scatter_grass()
 	_scatter_flowers()
 
@@ -443,16 +446,20 @@ func _scatter_bushes() -> void:
 		_plant("flower_bush" if rng.randf() < 0.3 else "bush", spot, rng.randf_range(0.8, 1.4))
 
 
-func _plant(kind: String, spot: Vector3, scale_by: float) -> void:
-	var key := "%s:%d" % [kind, rng.randi() % TREE_VARIANTS]
+func _plant(kind: String, spot: Vector3, scale_by: float, sink := 0.1) -> void:
+	var key := "%s:%d" % [kind, rng.randi() % (ROCK_VARIANTS if kind == "rock" else TREE_VARIANTS)]
 	if not _tree_meshes.has(key):
-		_tree_meshes[key] = Trees.grow(kind, hash(key) + world_seed)
+		if kind == "rock":
+			var stretch := Vector3(rng.randf_range(0.9, 1.4), rng.randf_range(0.5, 0.9), rng.randf_range(0.8, 1.2))
+			_tree_meshes[key] = Rocks.grow(hash(key) + world_seed, stretch)
+		else:
+			_tree_meshes[key] = Trees.grow(kind, hash(key) + world_seed)
 	var square := Vector2i(floori(spot.x / PLANTING_SQUARE), floori(spot.z / PLANTING_SQUARE))
 	var bucket := [key, square]
 	if not _plantings.has(bucket):
 		_plantings[bucket] = [[], []]
 	var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * scale_by)
-	_plantings[bucket][0].append(Transform3D(b, spot - Vector3(0, 0.1, 0)))
+	_plantings[bucket][0].append(Transform3D(b, spot - Vector3(0, sink * scale_by, 0)))
 	var tint := rng.randf_range(0.88, 1.1)
 	_plantings[bucket][1].append(Color(tint, tint * rng.randf_range(0.97, 1.03), tint))
 
@@ -498,19 +505,17 @@ func _build_flower_beds() -> void:
 				ri += 1
 
 
+## Rocks lie in little groups: a big one with a few smaller ones around
+## it, half sunk into the grass.
 func _scatter_rocks() -> void:
-	var rock_mesh := SphereMesh.new()
-	rock_mesh.radius = 0.6
-	rock_mesh.height = 0.9
-	rock_mesh.radial_segments = 6
-	rock_mesh.rings = 3
-	var rocks := _multimesh(rock_mesh, rock_count, _vertex_color_material(1.0), "Rocks")
-	for i in rock_count:
+	for i in rock_count / 4:
 		var spot := _random_spot(4.0)
-		var s := Vector3(rng.randf_range(0.6, 1.8), rng.randf_range(0.5, 1.0), rng.randf_range(0.6, 1.6))
-		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(s)
-		rocks.set_instance_transform(i, Transform3D(b, spot + Vector3(0, 0.1, 0)))
-		rocks.set_instance_color(i, Color(0.55, 0.55, 0.52).darkened(rng.randf() * 0.25))
+		_plant("rock", spot, rng.randf_range(1.0, 2.2), 0.15)
+		for small in rng.randi_range(1, 4):
+			var a := rng.randf() * TAU
+			var p := Vector2(spot.x, spot.z) + Vector2(cos(a), sin(a)) * rng.randf_range(1.2, 2.6)
+			if not is_kept_clear(p.x, p.y, 0.0):
+				_plant("rock", Vector3(p.x, height_at(p.x, p.y), p.y), rng.randf_range(0.35, 0.8), 0.05)
 
 
 func _scatter_grass() -> void:
@@ -531,9 +536,8 @@ func _scatter_flowers() -> void:
 	var drifts := FastNoiseLite.new()
 	drifts.seed = world_seed + 9
 	drifts.frequency = 0.025
-	var mesh := _flower_mesh()
-	var mat := ShaderMaterial.new()
-	mat.shader = preload("res://shaders/flower.gdshader")
+	var mesh := flower_mesh()
+	var mat := flower_material()
 	var groups := {}   # Vector2i region -> [transforms, colours]
 	for i in flower_count:
 		var x := rng.randf_range(-200, 200)
@@ -569,10 +573,18 @@ func _scatter_flowers() -> void:
 		add_child(mmi)
 
 
+## The wildflowers' material (flower.gdshader), shared by all of them.
+func flower_material() -> ShaderMaterial:
+	if _flower_material == null:
+		_flower_material = ShaderMaterial.new()
+		_flower_material.shader = preload("res://shaders/flower.gdshader")
+	return _flower_material
+
+
 ## A daisy-like flower: a thin stem with two leaves, five petals around a
 ## middle. UV2 marks the parts for flower.gdshader (x: petal, y: middle),
 ## which colours them. UV.y is how high up the flower a point is.
-func _flower_mesh() -> Mesh:
+func flower_mesh() -> Mesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var top := 0.32
