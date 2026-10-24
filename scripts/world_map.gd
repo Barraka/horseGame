@@ -9,8 +9,11 @@ extends CanvasLayer
 @export var horse_path: NodePath
 @export var quests_path: NodePath
 
-const PIXELS := 160          ## The ground picture's size (3 m a pixel)
-const EXTENT := 236.0        ## Metres from the middle to each edge of the map
+const PIXELS := 160          ## The ground picture's width (3 m a pixel)
+## The part of the world the map shows (x and z, in metres): the countryside,
+## and the snowy mountains beyond the pass to the north.
+const AREA := Rect2(-236.0, -446.0, 472.0, 682.0)
+const ICE := Color(0.72, 0.86, 0.95)
 const WATER := Color(0.36, 0.62, 0.85)
 const DEEP_WATER := Color(0.24, 0.46, 0.75)
 const GOLD := Color(1.0, 0.82, 0.3)
@@ -93,20 +96,23 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Paint the ground from above, once: grass, trail, sand, water, with the
 ## hills shaded as if lit from the top left. Trees are dotted on top.
 func _draw_ground() -> void:
-	var image := Image.create(PIXELS, PIXELS, false, Image.FORMAT_RGB8)
-	var step := EXTENT * 2.0 / PIXELS
+	var tall := roundi(PIXELS * AREA.size.y / AREA.size.x)
+	var image := Image.create(PIXELS, tall, false, Image.FORMAT_RGB8)
+	var step := AREA.size.x / PIXELS
 	var heights := PackedFloat32Array()
-	heights.resize((PIXELS + 1) * (PIXELS + 1))
-	for j in PIXELS + 1:
+	heights.resize((PIXELS + 1) * (tall + 1))
+	for j in tall + 1:
 		for i in PIXELS + 1:
-			heights[j * (PIXELS + 1) + i] = _world.height_at(-EXTENT + i * step, -EXTENT + j * step)
-	for j in PIXELS:
+			heights[j * (PIXELS + 1) + i] = _world.height_at(AREA.position.x + i * step, AREA.position.y + j * step)
+	for j in tall:
 		for i in PIXELS:
-			var x := -EXTENT + (i + 0.5) * step
-			var z := -EXTENT + (j + 0.5) * step
+			var x := AREA.position.x + (i + 0.5) * step
+			var z := AREA.position.y + (j + 0.5) * step
 			var h := heights[j * (PIXELS + 1) + i]
 			var color: Color
-			if _world.shore_distance(x, z) < 0.0 and h < _world.SEA_LEVEL:
+			if _world.is_on_ice(x, z):
+				color = ICE
+			elif _world.shore_distance(x, z) < 0.0 and h < _world.SEA_LEVEL:
 				color = WATER.lerp(DEEP_WATER, clampf(-_world.shore_distance(x, z) / 30.0, 0.0, 1.0))
 			elif _world.is_in_lake(x, z) and h < _world.WATER_LEVEL:
 				color = WATER
@@ -116,7 +122,7 @@ func _draw_ground() -> void:
 					color = Color(0.82, 0.72, 0.55)
 				# Hilltops fade to a heathery brown, and light from the top
 				# left makes slopes facing it brighter.
-				color = color.lerp(Color(0.56, 0.52, 0.36), smoothstep(6.0, 24.0, h) * 0.6)
+				color = color.lerp(Color(0.56, 0.52, 0.36), smoothstep(6.0, 24.0, h) * 0.6 * (1.0 - _world.snow_at(x, z)))
 				var dx := heights[j * (PIXELS + 1) + i + 1] - h
 				var dz := heights[(j + 1) * (PIXELS + 1) + i] - h
 				var light := clampf(1.0 - (dx + dz) * 0.2, 0.65, 1.3)
@@ -137,19 +143,21 @@ func _draw_ground() -> void:
 ## Where a spot in the world is on the map (map up is ahead from the start, -Z).
 func _to_map(world: Vector2) -> Vector2:
 	var box := _map_rect()
-	return box.position + (world + Vector2(EXTENT, EXTENT)) / (EXTENT * 2.0) * box.size
+	return box.position + (world - AREA.position) / AREA.size * box.size
 
 
+## The biggest box of the map's shape that fits on screen.
 func _map_rect() -> Rect2:
-	var side := minf(_map.size.x, _map.size.y)
-	return Rect2((_map.size - Vector2(side, side)) * 0.5, Vector2(side, side))
+	var fit := minf(_map.size.x / AREA.size.x, _map.size.y / AREA.size.y)
+	var size := AREA.size * fit
+	return Rect2((_map.size - size) * 0.5, size)
 
 
 func _draw_map() -> void:
 	if not _ground:
 		return
 	var box := _map_rect()
-	var scale_by := box.size.x / (EXTENT * 2.0)
+	var scale_by := box.size.x / AREA.size.x
 	_map.draw_texture_rect(_ground, box, false)
 	_map.draw_rect(box, Color(0.3, 0.2, 0.12), false, 4.0)
 	for tree in _trees:
