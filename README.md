@@ -17,6 +17,7 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 | Left click / right click | One gait faster / slower (also Q / E, or 0 to 4 for halt, walk, trot, canter, gallop) |
 | Space | Jump (trot or faster) |
 | Mouse drag, scroll | Look around, zoom |
+| T / R | Move the clock on two hours / change the weather |
 
 On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons bottom right; drag on the open screen to look around.
 
@@ -82,6 +83,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
 | `scripts/world.gd` | Terrain, arena, trail, lake shape, where trees and bushes grow, rocks and wildflowers |
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
+| `scripts/sky_cycle.gd`, `shaders/sky.gdshader` | Day and night (a day lasts 12 minutes), sunrise and sunset, moon, stars and fireflies, clouds, rain and rainbows |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
 | `scripts/explore.gd`, `shaders/water.gdshader` | The places to discover (lake, windmill, stone circle and the rest) and the lake's water |
@@ -94,6 +96,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/quest_test.gd` | Automatic test: plays every quest and checks the rewards |
 | `tests/competition_test.gd` | Automatic test: wins and loses show jumping and race cups, and checks prizes and trophies |
 | `tests/controls_test.gd` | Automatic test: U J H K keys, and clicks to change gait |
+| `tests/day_night_test.gd` | Automatic test: noon, sunset, night, rain and a rainbow |
 | `tests/training_test.gd` | Automatic test: trains a horse and checks it gallops faster, jumps higher and lasts longer |
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
