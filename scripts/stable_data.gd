@@ -139,7 +139,24 @@ func _init() -> void:
 		bond.append(START_BOND)
 
 
+## The game used to be called "Horse Game", and Godot keeps saves in a
+## folder named after the game. On the first run under the new name, copy
+## the old saves (horses, rider, settings) across so nothing is lost.
+func _bring_old_saves() -> void:
+	if FileAccess.file_exists(SAVE_PATH):
+		return
+	for godot_dir in ["Godot", "godot"]:
+		var old := OS.get_data_dir().path_join(godot_dir).path_join("app_userdata").path_join("Horse Game")
+		if old == OS.get_user_data_dir() or not FileAccess.file_exists(old.path_join("stable.cfg")):
+			continue
+		for file in ["stable.cfg", "rider.cfg", "settings.cfg"]:
+			if FileAccess.file_exists(old.path_join(file)):
+				DirAccess.copy_absolute(old.path_join(file), "user://" + file)
+		return
+
+
 func _ready() -> void:
+	_bring_old_saves()
 	var config := ConfigFile.new()
 	if config.load(SAVE_PATH) == OK:
 		selected = clampi(config.get_value("stable", "selected", 0), 0, HORSES.size() - 1)

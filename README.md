@@ -1,4 +1,4 @@
-# Horse Game
+# Silver Mane
 
 A horse riding game inspired by Star Stable, made with Godot 4.7 for Windows PC and Android tablets.
 

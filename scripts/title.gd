@@ -149,7 +149,7 @@ func _build_ui() -> void:
 	layer.add_child(root)
 
 	var title := Label.new()
-	title.text = ProjectSettings.get_setting("application/config/name", "Horse Game")
+	title.text = ProjectSettings.get_setting("application/config/name", "Silver Mane")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 84)
 	title.add_theme_color_override("font_color", Color(1.0, 0.93, 0.75))
