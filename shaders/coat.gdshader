@@ -16,6 +16,17 @@ uniform float ground_y = 0.0;                           // World height of the h
 uniform int pattern = 0;
 uniform vec3 pattern_color : source_color = vec3(0.95, 0.94, 0.92);
 uniform float pattern_seed = 0.0;
+// The grooming salon (tack.gd FACE_MARKINGS, LEG_MARKINGS, GLITTERS). The
+// markings map is painted in the texture's layout by tools/groom_track.py:
+// red = how squarely the spot faces forward on the face, green = how far
+// down the face, blue = height up the leg (0.5 at the knee), alpha = front
+// leg (0.25) or hind leg (0.75).
+uniform sampler2D markings_map : filter_linear, repeat_disable;
+uniform int face_marking = 0;   // 0 none, 1 star, 2 stripe, 3 blaze, 4 white face
+uniform int leg_marking = 0;    // 0 none, 1 front socks, 2 hind socks, 3 four socks, 4 four stockings
+uniform float glitter : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 glitter_color : source_color = vec3(1.0, 0.85, 0.4);
+uniform bool glitter_rainbow = false;
 
 const vec3 MUD = vec3(0.3, 0.22, 0.14);
 const vec3 DUST = vec3(0.62, 0.53, 0.42);
@@ -60,6 +71,40 @@ vec2 cells(vec2 p) {
 	return vec2(best, id);
 }
 
+// How white a spot is for the chosen face and leg markings, with soft,
+// slightly ragged edges like real ones.
+float marking(vec2 uv) {
+	vec4 m = texture(markings_map, uv);
+	float rag = (noise(uv * 160.0) - 0.5) * 0.05;
+	float white = 0.0;
+	if (face_marking > 0 && m.r > 0.0) {
+		float facing = m.r + rag;
+		float down = m.g + rag;
+		if (face_marking == 1) {
+			// A star on the forehead, between the eyes.
+			float d = length(vec2((1.0 - facing) * 9.0, (down - 0.22) * 6.5));
+			white = 1.0 - smoothstep(0.75, 0.95, d);
+		} else {
+			// Down the face to the nose: narrow, wide, or the whole front.
+			float edge = face_marking == 2 ? 0.965 : (face_marking == 3 ? 0.86 : 0.45);
+			float top = face_marking == 4 ? 0.0 : 0.12;
+			white = smoothstep(edge - 0.02, edge + 0.02, facing) * smoothstep(top, top + 0.06, down) * (1.0 - smoothstep(0.96, 1.0, down));
+		}
+	}
+	bool front = m.a < 0.5;
+	bool hind = m.a > 0.5 && m.a < 0.9;
+	bool on_leg = (leg_marking == 1 && front) || (leg_marking == 2 && hind) || (leg_marking >= 3 && (front || hind));
+	if (on_leg) {
+		float up_to = leg_marking == 4 ? 0.44 : 0.24;
+		white = max(white, 1.0 - smoothstep(up_to - 0.015, up_to + 0.015, m.b + rag * 0.6));
+	}
+	return white;
+}
+
+vec3 hue(float h) {
+	return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+}
+
 // Brightness of the texture's body and points, measured from the texture.
 const float BODY_LUMA = 0.57;
 const float POINTS_LUMA = 0.21;
@@ -86,7 +131,9 @@ void fragment() {
 		body *= mix(1.25, 0.7, smoothstep(0.35, 0.75, c.x));
 	}
 	vec3 coat = mix(points_color, body, t) * detail;
-	vec3 color = mix(tex, coat, strength);
+	float white = marking(UV);
+	coat = mix(coat, vec3(0.94, 0.93, 0.9) * clamp(luma / mix(POINTS_LUMA, BODY_LUMA, t), 0.8, 1.15), white);
+	vec3 color = mix(tex, coat, max(strength, white));
 	// Splashes of mud up the legs and a dusty film on the body, in patches
 	// that stay put on the coat (they follow its texture, not the world).
 	float patches = noise(UV * 30.0) * 0.6 + noise(UV * 90.0) * 0.4;
@@ -100,4 +147,14 @@ void fragment() {
 	SPECULAR = 0.5;
 	RIM = 0.25 * gloss * (1.0 - dirt);
 	RIM_TINT = 0.5;
+	// Glitter: tiny sparkles that twinkle as the horse moves and the light
+	// catches them.
+	if (glitter > 0.0) {
+		vec2 c = cells(UV * 220.0);
+		float twinkle = pow(max(sin(TIME * 2.5 + c.y * 60.0 + dot(VIEW, NORMAL) * 14.0), 0.0), 6.0);
+		float spark = (1.0 - smoothstep(0.03, 0.11, c.x)) * twinkle * (1.0 - mud);
+		vec3 tint = glitter_rainbow ? hue(c.y + TIME * 0.05) : glitter_color;
+		ALBEDO = mix(ALBEDO, tint, spark * 0.6);
+		EMISSION = tint * spark * glitter * 1.6;
+	}
 }
