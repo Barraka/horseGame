@@ -27,6 +27,9 @@ const PLACES := [
 	{"id": "windmill", "name": "Old Windmill", "the": true,      "pos": Vector2(-128, 40)},
 	{"id": "lookout",  "name": "Hilltop Lookout", "the": true,   "pos": Vector2(-152, -142)},
 	{"id": "wild",     "name": "Wild Horse Meadow", "the": true, "pos": Vector2(128, -118)},
+	{"id": "cove",     "name": "Seashell Cove",     "pos": Vector2(184, -36)},
+	{"id": "wreck",    "name": "Old Shipwreck", "the": true,     "pos": Vector2(204, 82)},
+	{"id": "lighthouse", "name": "Lighthouse Point",  "pos": Vector2(188, -152)},
 ]
 const LAKE_CENTER := Vector2(95, 70)
 const LAKE_RADIUS := 30.0
@@ -42,7 +45,21 @@ const TRAIL := [
 	Vector2(20, -118), Vector2(70, -122), Vector2(114, -104), Vector2(140, -52), Vector2(124, 0),
 	Vector2(78, 16), Vector2(36, 12),
 ]
+## A path off the trail down to the beach, and along the sand.
+const BEACH_PATH := [
+	Vector2(128, -6), Vector2(146, -12), Vector2(160, -4), Vector2(172, -2),
+]
 const TRAIL_WIDTH := 3.0
+## The beach along the east side: dunes, then sand sloping down into the
+## sea. The coast curves gently (coast_x); the edge hills run out into the
+## sea at both ends as headlands.
+const SEA_LEVEL := 0.4
+const BEACH_WIDTH := 30.0          ## Sand from the dunes to the water's edge
+const SAND_SLOPE := 0.05           ## How fast the beach rises from the water
+const SEA_FLOOR_SLOPE := 0.06
+const SAND_DRY := Color(0.76, 0.65, 0.46)
+const SAND_LIGHT := Color(0.84, 0.74, 0.55)
+const SAND_WET := Color(0.55, 0.46, 0.34)
 const TREE_VARIANTS := 3           ## Different-looking trees of each kind
 const PLANTING_SQUARE := 120.0     ## Trees are drawn in squares this big, so ones out of view are skipped
 const ROCK_VARIANTS := 6
@@ -96,9 +113,18 @@ func height_at(x: float, z: float) -> float:
 	# A big hill for the lookout.
 	var lookout: Vector2 = PLACES[4].pos
 	h += HILL_HEIGHT * exp(-Vector2(x, z).distance_squared_to(lookout) / (34.0 * 34.0))
-	# Hills closing in the edges of the world.
-	var edge := maxf(absf(x), absf(z))
-	h += EDGE_HEIGHT * smoothstep(size * 0.5 - 55.0, size * 0.5 - 5.0, edge)
+	# Hills closing in the edges of the world, except the east, which opens
+	# onto the beach.
+	var hills := EDGE_HEIGHT * smoothstep(size * 0.5 - 55.0, size * 0.5 - 5.0, absf(z))
+	h += maxf(EDGE_HEIGHT * smoothstep(size * 0.5 - 55.0, size * 0.5 - 5.0, -x), hills)
+	# The beach: sand sloping gently into the sea, with the end hills as headlands.
+	var shore := shore_distance(x, z)
+	if shore < BEACH_WIDTH + 40.0:
+		var beach := SEA_LEVEL + (shore * SAND_SLOPE if shore > 0.0 else maxf(shore, -30.0) * SEA_FLOOR_SLOPE)
+		if shore > BEACH_WIDTH * 0.6:
+			beach += smoothstep(BEACH_WIDTH * 0.6, BEACH_WIDTH, shore) * (0.5 + detail.get_noise_2d(x * 0.6, z * 0.6) * 0.5)
+		beach = minf(beach, SEA_LEVEL + BEACH_WIDTH * SAND_SLOPE + 1.0)
+		h = lerpf(h, beach + hills, smoothstep(BEACH_WIDTH + 40.0, BEACH_WIDTH + 4.0, shore))
 	# The lake: flat shore, then a shallow bowl the horse can wade into.
 	var d := Vector2(x, z).distance_to(LAKE_CENTER)
 	if d < LAKE_RADIUS + 28.0:
@@ -109,12 +135,33 @@ func height_at(x: float, z: float) -> float:
 	return h
 
 
+## Where the sea meets the sand, along the east side, at `z`.
+static func coast_x(z: float) -> float:
+	return 194.0 + 6.0 * sin(z * 0.023) + 3.0 * sin(z * 0.071 + 1.3)
+
+
+## How far inland from the water's edge a point is (negative out at sea).
+func shore_distance(x: float, z: float) -> float:
+	return coast_x(z) - x
+
+
+## On the beach (sand or sea), give or take `margin` metres.
+func is_beach(x: float, z: float, margin := 0.0) -> bool:
+	return shore_distance(x, z) < BEACH_WIDTH + margin
+
+
 ## The ground's painted colour at a point: grass in two greens, the trail
 ## in sandy browns, and the lake bed. The grass blades take it too.
 func ground_color(x: float, z: float) -> Color:
 	var t := clampf(detail.get_noise_2d(x * 0.5, z * 0.5) * 0.8 + 0.5, 0.0, 1.0)
 	var color := GRASS_DARK.lerp(GRASS_LIGHT, t)
 	color = color.lerp(TRAIL_DARK.lerp(TRAIL_LIGHT, t), trail_at(x, z))
+	var shore := shore_distance(x, z)
+	if shore < BEACH_WIDTH + 8.0:
+		var sand := SAND_DRY.lerp(SAND_LIGHT, t).lerp(SAND_WET, 1.0 - smoothstep(-1.0, 5.0, shore))
+		var amount := 1.0 - smoothstep(BEACH_WIDTH - 2.0, BEACH_WIDTH + 8.0, shore)
+		amount *= 1.0 - smoothstep(SEA_LEVEL + 3.0, SEA_LEVEL + 6.0, height_at(x, z))   # Not up the headlands
+		color = color.lerp(sand, amount)
 	if is_in_lake(x, z, 2.0):
 		color = color.lerp(LAKE_BED, 1.0 - smoothstep(LAKE_RADIUS - 2.0, LAKE_RADIUS + 2.0, Vector2(x, z).distance_to(LAKE_CENTER)))
 	return color
@@ -136,7 +183,7 @@ func is_in_lake(x: float, z: float, margin := 0.0) -> bool:
 
 ## Somewhere trees and rocks should stay away from.
 func is_kept_clear(x: float, z: float, margin: float) -> bool:
-	if is_in_arena(x, z, margin) or is_in_lake(x, z, margin + 4.0) or trail_at(x, z) > 0.0:
+	if is_in_arena(x, z, margin) or is_in_lake(x, z, margin + 4.0) or trail_at(x, z) > 0.0 or is_beach(x, z, margin + 2.0):
 		return true
 	for place in PLACES:
 		if Vector2(x, z).distance_to(place.pos) < 16.0 + margin:
@@ -160,8 +207,14 @@ func _build_trail() -> void:
 	var cells := int(size)
 	_trail_mask = PackedFloat32Array()
 	_trail_mask.resize(cells * cells)
+	var path := PackedVector2Array()
+	for i in BEACH_PATH.size() - 1:
+		var a: Vector2 = BEACH_PATH[i]
+		var b: Vector2 = BEACH_PATH[i + 1]
+		for step in int(a.distance_to(b)):
+			path.append(a.lerp(b, step / a.distance_to(b)))
 	var reach := int(ceil(TRAIL_WIDTH))
-	for point in trail_points:
+	for point in trail_points + path:
 		var cx := int(point.x + size * 0.5)
 		var cz := int(point.y + size * 0.5)
 		for dz in range(-reach, reach + 1):
@@ -244,7 +297,9 @@ func _build_terrain() -> void:
 		wall_shape.shape = box
 		wall.add_child(wall_shape)
 		wall.rotation.y = side * PI * 0.5
-		wall.position = Vector3(0, 20.0, size * 0.5 - 20.0).rotated(Vector3.UP, side * PI * 0.5)
+		# The east wall stands out in the sea, where it's still shallow.
+		var reach := 214.0 if side == 1 else size * 0.5 - 20.0
+		wall.position = Vector3(0, 20.0, reach).rotated(Vector3.UP, side * PI * 0.5)
 		add_child(wall)
 
 
@@ -545,7 +600,7 @@ func _scatter_flowers() -> void:
 		var drift := drifts.get_noise_2d(x, z)
 		if drift < 0.05 and rng.randf() > 0.15:
 			continue   # Mostly in drifts, a few on their own
-		if is_in_arena(x, z, 1.0) or trail_at(x, z) > 0.2 or is_in_lake(x, z, 1.0):
+		if is_in_arena(x, z, 1.0) or trail_at(x, z) > 0.2 or is_in_lake(x, z, 1.0) or is_beach(x, z):
 			continue
 		var key := Vector2i(floori(x / region), floori(z / region))
 		if not groups.has(key):
