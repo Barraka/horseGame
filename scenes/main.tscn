@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://scripts/horse.gd" id="2_horse"]
@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://scripts/ambience.gd" id="15_ambience"]
 [ext_resource type="Script" path="res://scripts/world_map.gd" id="16_map"]
 [ext_resource type="Script" path="res://scripts/photo_mode.gd" id="17_photo"]
+[ext_resource type="Script" path="res://scripts/mountains.gd" id="18_mountains"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_material"]
 sky_top_color = Color(0.22, 0.47, 0.88, 1)
@@ -162,6 +163,10 @@ course_path = NodePath("../Course")
 
 [node name="Beach" type="Node3D" parent="."]
 script = ExtResource("14_beach")
+world_path = NodePath("../World")
+
+[node name="Mountains" type="Node3D" parent="."]
+script = ExtResource("18_mountains")
 world_path = NodePath("../World")
 
 [node name="Explore" type="Node3D" parent="."]

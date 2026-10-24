@@ -102,6 +102,8 @@ func _surface() -> String:
 			return "sand"
 	if _world.is_in_arena(p.x, p.z):
 		return "sand"
+	if _world.has_method("snow_at") and _world.snow_at(p.x, p.z) > 0.5:
+		return "dirt" if _world.is_on_ice(p.x, p.z) else "snow"
 	return "dirt" if _world.trail_at(p.x, p.z) > 0.4 else "grass"
 
 
@@ -138,10 +140,16 @@ func _surroundings(delta: float) -> void:
 	var sea := 0.0
 	if _world.has_method("shore_distance"):
 		sea = 1.0 - smoothstep(12.0, 110.0, _world.shore_distance(p.x, p.z))
-	_fade("wind", -20.0 + rain * 6.0 + sea * 3.0, delta)
+	# Up in the mountains the rain is snow (no patter), the wind blows
+	# harder and the birds and crickets are quiet.
+	var snowy: float = _world.snow_at(p.x, p.z) if _world.has_method("snow_at") else 0.0
+	var wet := rain
+	rain *= 1.0 - snowy
+	day *= 1.0 - snowy * 0.85
+	_fade("wind", -20.0 + maxf(rain, wet * snowy) * 6.0 + sea * 3.0 + snowy * 7.0, delta)
 	_fade("rain", lerpf(-60.0, -6.0, sqrt(rain)), delta)
 	_fade("waves", lerpf(-60.0, -3.0, sea) if sea > 0.0 else -60.0, delta)
-	_fade("crickets", lerpf(-60.0, -16.0, (1.0 - day) * (1.0 - rain)), delta)
+	_fade("crickets", lerpf(-60.0, -16.0, (1.0 - day) * (1.0 - rain) * (1.0 - snowy)), delta)
 	# Birdsong by day (gulls near the sea), less of it in the rain.
 	_call_wait -= delta
 	if _call_wait <= 0.0:

@@ -21,6 +21,7 @@ var weather := "clear"
 var cover := 0.25                  ## How cloudy, follows the weather
 var rain := 0.0                    ## How hard it rains, follows the weather
 var rainbow := 0.0
+var snow_zone := 0.0               ## How far into the snowy mountains the camera is (set by mountains.gd); rain falls as snow there
 var _rainbow_left := 0.0
 var _weather_left := 0.0           ## Seconds until the weather may change
 var _sun: DirectionalLight3D
@@ -163,9 +164,9 @@ func _apply() -> void:
 	_env.ambient_light_energy = lerpf(1.2, 1.0, day)
 	_env.adjustment_saturation = lerpf(0.6, 1.1, day) * (1.0 - storm * 0.15)
 
-	_rain.amount_ratio = clampf(rain, 0.0, 1.0)
-	_rain.emitting = rain > 0.02
-	_fireflies.emitting = night > 0.5 and rain < 0.2
+	_rain.amount_ratio = clampf(rain * (1.0 - snow_zone), 0.0, 1.0)
+	_rain.emitting = rain > 0.02 and snow_zone < 0.6
+	_fireflies.emitting = night > 0.5 and rain < 0.2 and snow_zone < 0.3
 	_moonlight.light_energy = night * 1.6
 	_moonlight.visible = night > 0.01
 
