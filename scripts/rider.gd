@@ -125,9 +125,31 @@ func build(new_config: Dictionary) -> void:
 
 func set_pose(pose: String) -> void:
 	_pose = pose
+	pose_bones(POSES[pose])
+
+
+## A step of walking, `phase` going round 0 to TAU for a stride; `wave`
+## raises the right hand to whistle and wave.
+func walk_pose(phase: float, stride := 1.0, wave := 0.0) -> void:
+	var swing := sin(phase) * 28.0 * stride
+	var bend := maxf(0.0, -cos(phase)) * 40.0 * stride
+	var bend_r := maxf(0.0, cos(phase)) * 40.0 * stride
+	var rotations := {
+		"thigh_l": Vector3(-swing, 0, 0), "thigh_r": Vector3(swing, 0, 0),
+		"calf_l": Vector3(bend, 0, 0), "calf_r": Vector3(bend_r, 0, 0),
+		"upperarm_l": Vector3(swing * 0.7, 0, -75), "upperarm_r": Vector3(-swing * 0.7, 0, 75),
+		"lowerarm_l": Vector3(-15, 0, 0), "lowerarm_r": Vector3(-15, 0, 0),
+	}
+	if wave > 0.0:
+		rotations["upperarm_r"] = Vector3(-swing * 0.7, 0, 75).lerp(Vector3(-20, 0, -40 + sin(Time.get_ticks_msec() * 0.012) * 18.0), wave)
+		rotations["lowerarm_r"] = Vector3(-15, 0, 0).lerp(Vector3(-50, 0, 0), wave)
+	pose_bones(rotations)
+
+
+## Turn bones by these rotations (see POSES) from the rest pose.
+func pose_bones(rotations: Dictionary) -> void:
 	if not skeleton:
 		return
-	var rotations: Dictionary = POSES[pose]
 	var globals: Array[Basis] = []
 	globals.resize(skeleton.get_bone_count())
 	# Bones are listed parents first, so each parent is done before its children.
