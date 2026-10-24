@@ -44,7 +44,7 @@ func _ready() -> void:
 
 	if DisplayServer.is_touchscreen_available():
 		_build_touch_controls(root)
-	else:
+	elif Settings.show_help:
 		var help := _panel_label(root, Control.PRESET_TOP_RIGHT, Vector2(-20, 20), 15)
 		help.text = "U / J  ride on / slow down\nH / K  steer\nLeft click  faster\nRight click  slower\nSpace  jump\nDrag  look around"
 

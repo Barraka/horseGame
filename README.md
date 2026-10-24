@@ -67,6 +67,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 
 | Path | What it is |
 | --- | --- |
+| `scenes/title.tscn`, `scripts/title.gd` | The title screen: your horse and rider in the evening sun, with Play, Settings and Quit. The game's name is **Application > Config > Name** in Project Settings |
+| `scripts/settings.gd`, `scripts/settings_panel.gd` | Music and sound volume, graphics quality (Low, Medium, High), keyboard help and full screen, saved between games; the Settings window is on the title screen and in the stable |
 | `scenes/main.tscn` | The game scene: sky and lighting, world, horse, camera, course, HUD |
 | `scenes/stable.tscn`, `scripts/stable.gd` | The stable screen where you pick a horse |
 | `scripts/stable_barn.gd` | The stable building: aisle, stalls with your horses in them, lanterns, hay and tack |
@@ -107,6 +109,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/competition_test.gd` | Automatic test: wins and loses show jumping and race cups, and checks prizes and trophies |
 | `tests/controls_test.gd` | Automatic test: U J H K keys, and clicks to change gait |
 | `tests/day_night_test.gd` | Automatic test: noon, sunset, night, rain and a rainbow |
+| `tests/settings_test.gd` | Automatic test: the title screen, and settings being applied and saved |
 | `tests/names_test.gd` | Automatic test: renames a horse, checks the name shows and is saved, and that a bought foal asks for a name |
 | `tests/breeds_test.gd` | Automatic test: breed sizes, and a foal growing up until it can be ridden |
 | `tests/training_test.gd` | Automatic test: trains a horse and checks it gallops faster, jumps higher and lasts longer |
@@ -114,4 +117,4 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/shop_test.gd` | Automatic test: earns coins, buys a horse and a bridle, and checks they are paid for, saved and in the stable |
 | `legacy-babylon/` | The earlier Babylon.js web version, kept for reference |
 
-Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` `godot --headless --path . -s tests/controls_test.gd`, `godot --headless --path . -s tests/stable_test.gd`, `godot --headless --path . -s tests/breeds_test.gd`, `godot --headless --path . -s tests/names_test.gd` and `godot --headless --path . -s tests/day_night_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.
+Run the tests with `godot --headless --path . -s tests/ride_test.gd`, `godot --headless --path . -s tests/explore_test.gd` (the explore test resets your found places), `godot --headless --path . -s tests/tack_test.gd`, `godot --headless --path . -s tests/shop_test.gd` `godot --headless --path . -s tests/quest_test.gd` `godot --headless --path . -s tests/training_test.gd` `godot --headless --path . -s tests/competition_test.gd` `godot --headless --path . -s tests/controls_test.gd`, `godot --headless --path . -s tests/stable_test.gd`, `godot --headless --path . -s tests/breeds_test.gd`, `godot --headless --path . -s tests/names_test.gd`, `godot --headless --path . -s tests/settings_test.gd` and `godot --headless --path . -s tests/day_night_test.gd`. The tests put your saved coins, purchases, quests, training and competition results back when they finish.

@@ -35,6 +35,8 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	_sun = get_node(sun_path)
 	_env = (get_node(environment_path) as WorldEnvironment).environment
+	Settings.apply_environment(_env)
+	Settings.apply_sun(_sun)
 	_rng.randomize()
 	_weather_left = _rng.randf_range(90.0, 150.0)
 	_sky = ShaderMaterial.new()

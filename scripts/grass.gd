@@ -20,9 +20,8 @@ var _lushness := FastNoiseLite.new()
 
 func setup(owner_world: Node3D, ground: ShaderMaterial) -> void:
 	world = owner_world
-	if OS.has_feature("mobile"):
-		per_chunk = 450
-		reach = 32.0
+	per_chunk = Settings.grass_amount()
+	reach = Settings.grass_reach()
 	_lushness.seed = world.world_seed + 5
 	_lushness.frequency = 0.03
 	_tuft = _tuft_mesh()
