@@ -1,7 +1,9 @@
 """Measure what the grooming salon needs from each gait clip.
 
-1. Where the braids go: points along the top of the neck (the crest, from
-   withers to poll) and the top of the tail, followed frame by frame like
+1. Where the braids and hair go: points along the top of the neck (the
+   crest, from withers to poll), the top of the tail, and down the middle
+   of the model's own tail (tail_0 at the root to tail_5 at the tip, which
+   scripts/hair.gd hangs the new tail along), followed frame by frame like
    tools/saddle_track.py does for the saddle. Written to
    assets/horse/gaits/groom_track.json for scripts/horse.gd.
 2. A markings map, painted in the horse texture's own layout (UV space,
@@ -23,9 +25,12 @@ from pathlib import Path
 
 import numpy as np
 
-from saddle_track import CLIPS, GAITS, TYPES, SIZES, load
+from saddle_track import CLIPS, GAITS, TYPES, SIZES, components, load
 
 BRAIDS = 7          # Button braids along the crest
+TAIL_POINTS = 6     # Down the middle of the tail
+# The tail's island in the texture (u from, v from, u to, v to).
+TAIL_ISLAND = (0.355, 0.85, 0.64, 1.0)
 SIZE = 512          # Markings map size in pixels
 
 
@@ -76,6 +81,19 @@ def dock_vertex(first, croup, fwd, side):
     behind = croup[fwd] - first[:, fwd]
     sel = np.where((np.abs(first[:, side] - croup[side]) < 0.6) & (np.abs(behind - 2.9) < 0.35))[0]
     return int(sel[np.argmax(first[sel, 1])])
+
+
+def tail_spine(first, uv, triangles, dock):
+    """Groups of tail vertices from the root to the tip: the tail is the
+    piece of its texture island that touches the dock, cut into slices by
+    how far each vertex is from the dock."""
+    lo_u, lo_v, hi_u, hi_v = TAIL_ISLAND
+    island = np.where((uv[:, 0] > lo_u) & (uv[:, 0] < hi_u) & (uv[:, 1] > lo_v) & (uv[:, 1] < hi_v))[0]
+    pieces = [np.array(p) for p in components(island, triangles)]
+    tail = min(pieces, key=lambda p: np.linalg.norm(first[p] - dock, axis=1).min())
+    reach = np.linalg.norm(first[tail] - dock, axis=1)
+    edges = np.linspace(0.0, reach.max() + 1e-6, TAIL_POINTS + 1)
+    return [tail[(reach >= edges[i]) & (reach < edges[i + 1])] for i in range(TAIL_POINTS)]
 
 
 def face_and_legs(first, track, fwd, side):
@@ -187,9 +205,11 @@ def main():
         for i, vertex in enumerate(crest):
             points["crest_%d" % i] = [[round(float(v), 3) for v in frame[vertex]] for frame in frames]
         points["dock"] = [[round(float(v), 3) for v in frame[dock]] for frame in frames]
+        uv, triangles = load_uv(GAITS / name)
+        for i, group in enumerate(tail_spine(first, uv, triangles, first[dock])):
+            points["tail_%d" % i] = [[round(float(v), 3) for v in frame[group].mean(0)] for frame in frames]
         out[name] = points
         if name == "horse_walk.glb":
-            uv, triangles = load_uv(GAITS / name)
             write_png(GAITS / "markings.png", paint(uv, triangles, face_and_legs(first, track, fwd, side)))
             print("wrote", GAITS / "markings.png")
     (GAITS / "groom_track.json").write_text(json.dumps(out))

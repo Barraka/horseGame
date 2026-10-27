@@ -76,6 +76,7 @@ func _stable_horse(index: int, slot: int) -> Node3D:
 	var horse := Horse.new()
 	horse.with_rider = false
 	horse.with_tack = false
+	horse.simple_hair = true
 	var spot := stall_spot(slot)
 	horse.position = spot + Vector3(-signf(spot.x) * 0.3, 0, 0)
 	horse.rotation.y = PI * 0.5 * signf(spot.x)   # Facing out over the door

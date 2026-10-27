@@ -111,8 +111,8 @@ var _braids: Array[MeshInstance3D] = []   ## A knot (and bow) at each crest poin
 var _bows: Array[Node3D] = []
 var _tail_bow: Node3D
 var _wraps: Array[MeshInstance3D] = []
-var _rings := {}    ## Name -> torus MeshInstance3D placed each frame
-var _straps := {}   ## Name -> box MeshInstance3D stretched between two points each frame
+var _rings := {}    ## Name -> a loop, bit ring or stirrup iron placed each frame
+var _straps := {}   ## Name -> a strap stretched between two points each frame
 var _materials := {}
 
 
@@ -141,6 +141,7 @@ func build(new_config: Dictionary, saddle_root: Node3D) -> void:
 	_tail_bow = null
 	_rings.clear()
 	_straps.clear()
+	_reins.clear()
 	_make_materials()
 	_saddle_parts = Node3D.new()
 	_saddle_parts.name = "SaddleParts"
@@ -153,57 +154,60 @@ func build(new_config: Dictionary, saddle_root: Node3D) -> void:
 
 
 func _make_materials() -> void:
-	var cloth := func(color: Color) -> StandardMaterial3D:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = color
-		m.roughness = 0.85
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		m.rim_enabled = true
-		m.rim = 0.3
-		return m
-	_materials.pad = cloth.call(PAD_COLORS[config.pad].color)
+	_materials.pad = _material(PAD_CLOTH, PAD_COLORS[config.pad].color)
 	var trim: Dictionary = TRIM_COLORS[config.trim]
-	_materials.trim = cloth.call(trim.color)
-	if trim.get("metal", false):
-		_materials.trim.metallic = 0.8
-		_materials.trim.roughness = 0.3
-	var leather := func(color: Color) -> StandardMaterial3D:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = color
-		m.roughness = 0.6
-		m.metallic_specular = 0.3
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		return m
-	_materials.saddle = leather.call(LEATHERS[config.saddle].color)
-	_materials.bridle = leather.call(BRIDLE_COLORS[config.bridle].color)
-	var metal := StandardMaterial3D.new()
-	metal.albedo_color = Color(0.82, 0.83, 0.86)
-	metal.metallic = 0.9
-	metal.roughness = 0.25
-	_materials.metal = metal
-	_materials.mane = cloth.call(mane_color)
-	_materials.mane.roughness = 0.7
+	_materials.trim = _material(METAL if trim.get("metal", false) else CLOTH, trim.color, 0.8)
+	var saddle: Color = LEATHERS[config.saddle].color
+	_materials.saddle = _material(LEATHER, saddle, 0.65)
+	_materials.flap = _material(LEATHER, saddle, 0.65, _arc_length(FLAP_TOP, FLAP_DEPTH))
+	_materials.strap = _material(LEATHER, saddle, 0.5, STRAP_UV)
+	_materials.bridle = _material(LEATHER, BRIDLE_COLORS[config.bridle].color, 0.55, STRAP_UV)
+	_materials.metal = _material(METAL, Color(0.82, 0.83, 0.86), 0.8)
+	_materials.mane = _material(CLOTH, mane_color, 0.3)
 	var ribbon: Dictionary = RIBBON_COLORS[config.ribbon]
-	_materials.ribbon = cloth.call(ribbon.color)
-	_materials.ribbon.roughness = 0.4
-	if ribbon.get("metal", false):
-		_materials.ribbon.metallic = 0.7
-		_materials.ribbon.roughness = 0.3
+	_materials.ribbon = _material(METAL if ribbon.get("metal", false) else CLOTH, ribbon.color, 0.6)
 	var wrap_color: Color = WRAP_COLORS[config.wraps].color
 	if wrap_color.a > 0.0:
-		_materials.wraps = cloth.call(wrap_color)
-		_materials.wraps.roughness = 0.95
+		_materials.wraps = _material(BANDAGE, wrap_color)
+
+
+## Kinds of material in shaders/tack.gdshader.
+const LEATHER := 0
+const PAD_CLOTH := 1
+const BANDAGE := 2
+const CLOTH := 3
+const METAL := 4
+const TACK_SHADER := preload("res://shaders/tack.gdshader")
+const STRAP_UV := 0.02   ## Leather straps' UVs run 0 to this across them (for the stitches)
+
+
+func _material(kind: int, color: Color, shine := 0.5, stitch_width := 0.0) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = TACK_SHADER
+	m.set_shader_parameter("kind", kind)
+	m.set_shader_parameter("color", color)
+	m.set_shader_parameter("shine", shine)
+	m.set_shader_parameter("stitch_width", stitch_width)
+	if color.get_luminance() > 0.5:
+		m.set_shader_parameter("stitch_color", color.darkened(0.45))
+	return m
 
 
 # --- Saddle -------------------------------------------------------------------
 
 ## The saddle's own space is the seat: forward -Z, up +Y, the top of the
-## horse's back at y = 0. The pad and saddle are shells shaped like the back
-## (measured from the model, plus a little room): how far out each side is
-## at each depth below the top...
-const BACK_WIDTH := [[0.0, 0.0], [0.01, 0.09], [0.04, 0.18], [0.08, 0.24], [0.13, 0.29], [0.2, 0.34], [0.27, 0.385], [0.35, 0.43], [0.45, 0.45]]
+## horse's back at y = 0. The pad, saddle and girth are slabs shaped like the
+## horse's back and barrel (measured from the model, plus a little room):
+## how far out each side is at each depth below the top...
+const BACK_WIDTH := [[0.0, 0.0], [0.01, 0.09], [0.04, 0.18], [0.08, 0.24], [0.13, 0.29], [0.2, 0.325],
+	[0.27, 0.345], [0.35, 0.36], [0.45, 0.365], [0.52, 0.34], [0.6, 0.26], [0.66, 0.18], [0.7, 0.09], [0.72, 0.0]]
 const PAD_DEPTH := 0.33      ## How far down the sides the pad hangs
-const SADDLE_DEPTH := 0.2
+const PAD_FRONT := -0.33
+const PAD_BACK := 0.31
+const SEAT_DEPTH := 0.21     ## How far down the sides the seat comes
+const FLAP_TOP := 0.12       ## The flaps hang from under the seat...
+const FLAP_DEPTH := 0.45     ## ...to here
+const GIRTH_DEPTH := 0.72    ## Under the belly
 
 
 ## ...and how much the back rises in front of and behind the seat, which
@@ -222,6 +226,28 @@ func _back_width(depth: float) -> float:
 	return 0.0
 
 
+## A point `out` metres off the horse's back and barrel, at `u` (the signed
+## depth below the top: negative on the left, positive on the right) and `z`.
+func _point(u: float, z: float, out: float) -> Vector3:
+	var depth := absf(u)
+	return Vector3(signf(u) * (_back_width(depth) + out), -depth + out + _back_rise(z), z)
+
+
+## How far round the horse it is from depth `a` to depth `b`, in metres.
+func _arc_length(a: float, b: float) -> float:
+	var length := 0.0
+	for i in 24:
+		length += _point(lerpf(a, b, i / 24.0), 0.0, 0.0).distance_to(_point(lerpf(a, b, (i + 1) / 24.0), 0.0, 0.0))
+	return length
+
+
+## How far a corner of radius `r` cuts in at `depth`, for a piece reaching
+## down to `bottom`: rounded bottom corners.
+func _corner(depth: float, bottom: float, r: float) -> float:
+	var into := maxf(depth - (bottom - r), 0.0)
+	return r - sqrt(maxf(r * r - into * into, 0.0))
+
+
 ## Fit the saddle and pad to a horse of another size or build.
 func set_body_scale(shape: Vector3) -> void:
 	body_scale = shape
@@ -235,79 +261,245 @@ func _build_saddle() -> void:
 	_shells = Node3D.new()
 	_shells.scale = body_scale
 	_saddle_parts.add_child(_shells)
-	# The pad, with trim along its lower edges and across its front and back.
-	_add(_shell(-PAD_DEPTH, PAD_DEPTH, -0.33, 0.31, 0.0), _materials.pad, _shells)
+	# The pad: quilted, with rounded corners and piping round its edge.
+	var pad_front := func(d: float) -> float: return PAD_FRONT + _corner(d, PAD_DEPTH, 0.09)
+	var pad_back := func(d: float) -> float: return PAD_BACK - _corner(d, PAD_DEPTH, 0.12)
+	_add(_slab(-PAD_DEPTH, PAD_DEPTH, pad_front, pad_back, 0.0, 0.016), _materials.pad, _shells)
+	_add(_tube(_outline(-PAD_DEPTH, PAD_DEPTH, pad_front, pad_back, 0.016), 0.008), _materials.trim, _shells)
+	# The girth, round the belly from under one flap to under the other.
+	var girth_front := func(_d: float) -> float: return -0.15
+	var girth_back := func(_d: float) -> float: return -0.07
+	# Flaps hanging down each side, slanting forward, with a padded knee roll.
+	var flap_front := func(d: float) -> float:
+		return -0.21 - 0.15 * clampf((d - FLAP_TOP) / (FLAP_DEPTH - FLAP_TOP), 0.0, 1.0) + _corner(d, FLAP_DEPTH, 0.07)
+	var flap_back := func(d: float) -> float:
+		return 0.1 - 0.04 * clampf((d - FLAP_TOP) / (FLAP_DEPTH - FLAP_TOP), 0.0, 1.0) - _corner(d, FLAP_DEPTH, 0.1)
+	var roll_front := func(d: float) -> float: return flap_front.call(d) + 0.02
+	var roll_back := func(d: float) -> float: return flap_front.call(d) + 0.07
 	for s in [-1.0, 1.0]:
-		_add(_shell(s * (PAD_DEPTH - 0.035), s * PAD_DEPTH, -0.33, 0.31, 0.004), _materials.trim, _shells)
-	for z in [-0.33, 0.275]:
-		_add(_shell(-PAD_DEPTH, PAD_DEPTH, z, z + 0.035, 0.004), _materials.trim, _shells)
-	# The saddle: flaps over the pad, and a raised pommel and cantle.
-	_add(_shell(-SADDLE_DEPTH, SADDLE_DEPTH, -0.22, 0.2, 0.026), _materials.saddle, _shells)
-	for part in [[0.1, -0.2, -0.01], [0.13, 0.19, -0.035]]:
-		var mesh := CylinderMesh.new()
-		mesh.top_radius = part[0]
-		mesh.bottom_radius = part[0]
-		mesh.height = 0.05
-		mesh.radial_segments = 24
-		var mi := _add(mesh, _materials.saddle, _shells)
-		mi.rotation.x = PI / 2
-		mi.position = Vector3(0, part[2] + _back_rise(part[1]), part[1])
-		mi.scale = Vector3(1.0, 1.0, 0.75)
+		_add(_slab(s * 0.36, s * GIRTH_DEPTH, girth_front, girth_back, 0.004, 0.01), _materials.strap, _shells)
+		_add(_slab(s * FLAP_TOP, s * FLAP_DEPTH, flap_front, flap_back, 0.022, 0.008), _materials.flap, _shells)
+		_add(_slab(s * 0.16, s * 0.4, roll_front, roll_back, 0.03, 0.012), _materials.saddle, _shells)
+	# The seat, rising to the pommel in front and the cantle behind.
+	var seat_front := func(d: float) -> float: return -0.25 + _corner(d, SEAT_DEPTH, 0.08)
+	var seat_back := func(d: float) -> float: return 0.2 - _corner(d, SEAT_DEPTH, 0.12)
+	var seat_lift := func(u: float, z: float) -> float:
+		var d := absf(u)
+		var pommel := 0.035 * (1.0 - smoothstep(-0.25, -0.14, z)) * (1.0 - smoothstep(0.02, 0.12, d))
+		var cantle := 0.06 * smoothstep(0.07, 0.2, z) * (1.0 - smoothstep(0.05, 0.17, d))
+		return pommel + cantle
+	_add(_slab(-SEAT_DEPTH, SEAT_DEPTH, seat_front, seat_back, 0.02, 0.028, seat_lift), _materials.saddle, _shells)
 	# Stirrups: an iron on a leather on each side.
 	for side in ["l", "r"]:
-		_straps["leather_" + side] = _add(BoxMesh.new(), _materials.saddle, _saddle_parts)
-		var iron := TorusMesh.new()
-		iron.inner_radius = 0.045
-		iron.outer_radius = 0.058
-		iron.rings = 16
-		iron.ring_segments = 6
-		_rings["iron_" + side] = _add(iron, _materials.metal, _saddle_parts)
+		_straps["leather_" + side] = _add(_strap_mesh(), _materials.strap, _saddle_parts)
+		_rings["iron_" + side] = _stirrup_iron()
 
 
-## A shell over the horse's back, from `from` to `to` around it (signed
-## depths below the top: negative on the left, positive on the right), from
-## `front` to `back` along it, and `out` further out than the back itself.
-func _shell(from: float, to: float, front: float, back: float, out: float) -> ArrayMesh:
+## A stirrup iron: an arch with a flat tread to stand on. Its own space:
+## across the horse X, forward Y, up Z, the tread at the origin.
+func _stirrup_iron() -> Node3D:
+	var iron := Node3D.new()
+	_saddle_parts.add_child(iron)
+	var arch := TorusMesh.new()
+	arch.inner_radius = 0.05
+	arch.outer_radius = 0.06
+	arch.rings = 20
+	arch.ring_segments = 8
+	var mi := _add(arch, _materials.metal, iron)
+	mi.position = Vector3(0, 0, 0.055)
+	mi.scale = Vector3(1.0, 1.0, 1.12)
+	var tread := BoxMesh.new()
+	tread.size = Vector3(0.11, 0.045, 0.012)
+	_add(tread, _materials.metal, iron).position = Vector3(0, 0, 0.004)
+	return iron
+
+
+## A slab lying on the horse's back from `from` to `to` round it (signed
+## depths, see _point), from front(depth) to back(depth) along it, `out`
+## off the horse and `thick` thick, plus lift(u, z) on top. Its UVs are in
+## metres: round the horse, then along it.
+func _slab(from: float, to: float, front: Callable, back: Callable, out: float, thick: float, lift := Callable()) -> ArrayMesh:
+	const ACROSS := 24
+	const ALONG := 12
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var across := 20
-	var along := 8
-	var point := func(u: float, z: float) -> Vector3:
-		var depth := absf(u)
-		return Vector3(signf(u) * (_back_width(depth) + out), -depth + out + _back_rise(z), z)
-	for i in across:
-		var u0 := lerpf(from, to, float(i) / across)
-		var u1 := lerpf(from, to, float(i + 1) / across)
-		for j in along:
-			var z0 := lerpf(front, back, float(j) / along)
-			var z1 := lerpf(front, back, float(j + 1) / along)
-			var quad: Array[Vector3] = [point.call(u0, z0), point.call(u1, z0), point.call(u0, z1), point.call(u1, z1)]
-			for k in [0, 1, 2, 2, 1, 3]:
-				st.add_vertex(quad[k])
+	# Distance round the horse at each step across, for the UVs.
+	var arc: Array[float] = [0.0]
+	for i in ACROSS:
+		var a := lerpf(from, to, float(i) / ACROSS)
+		var b := lerpf(from, to, float(i + 1) / ACROSS)
+		arc.append(arc[i] + _point(a, 0.0, 0.0).distance_to(_point(b, 0.0, 0.0)))
+	var top := []
+	var bottom := []
+	for i in ACROSS + 1:
+		var u := lerpf(from, to, float(i) / ACROSS)
+		var d := absf(u)
+		var top_row := []
+		var bottom_row := []
+		for j in ALONG + 1:
+			var z := lerpf(front.call(d), back.call(d), float(j) / ALONG)
+			var rise: float = lift.call(u, z) if lift.is_valid() else 0.0
+			top_row.append([_point(u, z, out + thick + rise), Vector2(arc[i], z)])
+			bottom_row.append([_point(u, z, out), Vector2(arc[i], z)])
+		top.append(top_row)
+		bottom.append(bottom_row)
+	var quad := func(a: Array, b: Array, c: Array, d: Array) -> void:
+		for v in [a, b, c, c, b, d]:
+			st.set_uv(v[1])
+			st.add_vertex(v[0])
+	st.set_smooth_group(0)
+	for i in ACROSS:
+		for j in ALONG:
+			quad.call(top[i][j], top[i + 1][j], top[i][j + 1], top[i + 1][j + 1])
+	st.set_smooth_group(1)
+	for i in ACROSS:
+		for j in ALONG:
+			quad.call(bottom[i][j], bottom[i][j + 1], bottom[i + 1][j], bottom[i + 1][j + 1])
+	# The edges all round.
+	st.set_smooth_group(2)
+	for i in ACROSS:
+		quad.call(top[i][0], bottom[i][0], top[i + 1][0], bottom[i + 1][0])
+		quad.call(top[i][ALONG], top[i + 1][ALONG], bottom[i][ALONG], bottom[i + 1][ALONG])
+	for j in ALONG:
+		quad.call(top[0][j], top[0][j + 1], bottom[0][j], bottom[0][j + 1])
+		quad.call(top[ACROSS][j], bottom[ACROSS][j], top[ACROSS][j + 1], bottom[ACROSS][j + 1])
+	st.generate_normals()
+	return st.commit()
+
+
+## The edge of a slab's top, all the way round.
+func _outline(from: float, to: float, front: Callable, back: Callable, out: float) -> Array[Vector3]:
+	const STEPS := 24
+	var points: Array[Vector3] = []
+	for i in STEPS:
+		var u := lerpf(from, to, float(i) / STEPS)
+		points.append(_point(u, front.call(absf(u)), out))
+	for i in STEPS:
+		var z := lerpf(front.call(absf(to)), back.call(absf(to)), float(i) / STEPS)
+		points.append(_point(to, z, out))
+	for i in STEPS:
+		var u := lerpf(to, from, float(i) / STEPS)
+		points.append(_point(u, back.call(absf(u)), out))
+	for i in STEPS:
+		var z := lerpf(back.call(absf(from)), front.call(absf(from)), float(i) / STEPS)
+		points.append(_point(from, z, out))
+	return points
+
+
+## A round tube of `radius` through a closed loop of points (piping).
+func _tube(points: Array[Vector3], radius: float) -> ArrayMesh:
+	const SIDES := 6
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rings := []
+	var count := points.size()
+	for i in count:
+		var along := (points[(i + 1) % count] - points[(i - 1 + count) % count]).normalized()
+		var side := along.cross(Vector3.UP)
+		if side.length() < 0.1:
+			side = along.cross(Vector3.RIGHT)
+		side = side.normalized()
+		var up := side.cross(along).normalized()
+		var ring := []
+		for k in SIDES:
+			var a := TAU * k / SIDES
+			ring.append(points[i] + (side * cos(a) + up * sin(a)) * radius)
+		rings.append(ring)
+	for i in count:
+		var r0: Array = rings[i]
+		var r1: Array = rings[(i + 1) % count]
+		for k in SIDES:
+			var k1 := (k + 1) % SIDES
+			for v in [r0[k], r1[k], r0[k1], r0[k1], r1[k], r1[k1]]:
+				st.set_uv(Vector2(float(k) / SIDES * 0.05, i * 0.01))
+				st.add_vertex(v)
 	st.generate_normals()
 	return st.commit()
 
 
 # --- Bridle -------------------------------------------------------------------
 
+const BAND_WIDTH := 0.022      ## Noseband and headpiece straps
+const REIN_PIECES := 10
+
+var _reins := {}    ## "l"/"r" -> the pieces of each rein, nose to hand
+var _strap: ArrayMesh
+
+
 func _build_bridle() -> void:
-	var ring := TorusMesh.new()
-	ring.inner_radius = 0.9
-	ring.outer_radius = 1.0
-	ring.rings = 24
-	ring.ring_segments = 6
+	var loop := _band_loop()
 	for name in ["noseband", "headpiece"]:
-		_rings[name] = _add(ring, _materials.bridle, self)
+		_rings[name] = _add(loop, _materials.bridle, self)
 	var bit := TorusMesh.new()
 	bit.inner_radius = 0.024
 	bit.outer_radius = 0.032
-	bit.rings = 12
-	bit.ring_segments = 6
+	bit.rings = 16
+	bit.ring_segments = 8
 	for side in ["l", "r"]:
 		_rings["bit_" + side] = _add(bit, _materials.metal, self)
-		for name in ["cheekpiece_", "rein_", "rein_end_"]:
-			_straps[name + side] = _add(BoxMesh.new(), _materials.bridle, self)
-	_straps.browband = _add(BoxMesh.new(), _materials.trim, self)
+		_straps["cheekpiece_" + side] = _add(_strap_mesh(), _materials.bridle, self)
+		_straps["buckle_" + side] = _add(_strap_mesh(), _materials.metal, self)
+		_straps["keeper_" + side] = _add(_strap_mesh(), _materials.bridle, self)
+		var pieces: Array[MeshInstance3D] = []
+		for i in REIN_PIECES:
+			pieces.append(_add(_strap_mesh(), _materials.bridle, self))
+		_reins[side] = pieces
+	_straps.browband = _add(_strap_mesh(), _materials.trim, self)
+
+
+## A flat leather band round a loop shaped like a rounded square (the
+## horse's head is squarer than an ellipse), radius 1 in X and Z, BAND
+## width along Y; placed and sized by _place_ring.
+func _band_loop() -> ArrayMesh:
+	const STEPS := 48
+	const POWER := 2.6
+	const THICK := 0.06
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var corners := []   # Each step: inner bottom, inner top, outer bottom, outer top
+	for i in STEPS + 1:
+		var a := TAU * i / STEPS
+		var c := cos(a)
+		var s := sin(a)
+		var p := Vector3(signf(c) * pow(absf(c), 2.0 / POWER), 0.0, signf(s) * pow(absf(s), 2.0 / POWER))
+		var v := float(i) / STEPS * 0.8
+		corners.append([[p + Vector3(0, -0.5, 0), Vector2(0.0, v)], [p + Vector3(0, 0.5, 0), Vector2(STRAP_UV, v)],
+			[p * (1.0 + THICK) + Vector3(0, -0.5, 0), Vector2(0.0, v)], [p * (1.0 + THICK) + Vector3(0, 0.5, 0), Vector2(STRAP_UV, v)]])
+	var quad := func(a: Array, b: Array, c: Array, d: Array) -> void:
+		for v in [a, b, c, c, b, d]:
+			st.set_uv(v[1])
+			st.add_vertex(v[0])
+	for face in [[2, 3], [1, 0], [3, 1], [0, 2]]:
+		st.set_smooth_group(face[0] * 4 + face[1])
+		for i in STEPS:
+			quad.call(corners[i][face[0]], corners[i][face[1]], corners[i + 1][face[0]], corners[i + 1][face[1]])
+	st.generate_normals()
+	return st.commit()
+
+
+## A unit strap (a box from -0.5 to 0.5: X across it, Y through it, Z
+## along it), its UVs running 0 to STRAP_UV across for the stitching.
+func _strap_mesh() -> ArrayMesh:
+	if _strap:
+		return _strap
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)   # Flat sides
+	var corner := func(x: float, y: float, z: float) -> Array:
+		return [Vector3(x, y, z), Vector2((x + 0.5) * STRAP_UV, (z + 0.5) * 0.3)]
+	var quad := func(a: Array, b: Array, c: Array, d: Array) -> void:
+		for v in [a, b, c, c, b, d]:
+			st.set_uv(v[1])
+			st.add_vertex(v[0])
+	for y in [-0.5, 0.5]:
+		quad.call(corner.call(-0.5, y, -0.5), corner.call(0.5, y, -0.5), corner.call(-0.5, y, 0.5), corner.call(0.5, y, 0.5))
+	for x in [-0.5, 0.5]:
+		quad.call(corner.call(x, -0.5, -0.5), corner.call(x, 0.5, -0.5), corner.call(x, -0.5, 0.5), corner.call(x, 0.5, 0.5))
+	for z in [-0.5, 0.5]:
+		quad.call(corner.call(-0.5, -0.5, z), corner.call(0.5, -0.5, z), corner.call(-0.5, 0.5, z), corner.call(0.5, 0.5, z))
+	st.generate_normals()
+	_strap = st.commit()
+	return _strap
 
 
 # --- Leg wraps ----------------------------------------------------------------
@@ -316,12 +508,13 @@ func _build_wraps() -> void:
 	if not _materials.has("wraps"):
 		return
 	for leg in LEGS:
+		# A little wider at the top, where the bandage is wound over itself.
 		var mesh := CylinderMesh.new()
-		mesh.top_radius = 1.0
+		mesh.top_radius = 1.06
 		mesh.bottom_radius = 1.0
 		mesh.height = 1.0
-		mesh.radial_segments = 16
-		mesh.rings = 1
+		mesh.radial_segments = 20
+		mesh.rings = 3
 		var mi := _add(mesh, _materials.wraps, self)
 		mi.name = "Wrap_" + leg
 		_wraps.append(mi)
@@ -437,7 +630,7 @@ func _follow_head(points: Dictionary, saddle: Transform3D) -> void:
 	var tilt_up := up.rotated(right, -0.35)
 	_place_ring(_rings.headpiece, poll, right, tilt_up, tilt, HEADPIECE_SIZE)
 	var brow := poll + ahead * 0.06 + up * (HEADPIECE_SIZE.y * 0.82)
-	_place_strap(_straps.browband, brow - right * 0.085, brow + right * 0.085, ahead, 0.022, 0.008)
+	_place_strap(_straps.browband, brow - right * 0.09, brow + right * 0.09, ahead, 0.024, 0.008)
 
 	var mouth := nose - ahead * 0.07 - up * 0.04
 	for s in [-1.0, 1.0]:
@@ -446,30 +639,45 @@ func _follow_head(points: Dictionary, saddle: Transform3D) -> void:
 		var bit_ring: MeshInstance3D = _rings["bit_" + side]
 		bit_ring.transform = Transform3D(Basis(ahead, -right, up), bit)
 		var cheek_top: Vector3 = poll + right * s * (HEADPIECE_SIZE.x + 0.005)
-		_place_strap(_straps["cheekpiece_" + side], cheek_top, bit + up * 0.025, right * s, 0.018, 0.007)
-		# Reins go back to the rider's hands, or rest on the neck by the withers.
+		var cheek_bottom: Vector3 = bit + up * 0.028
+		_place_strap(_straps["cheekpiece_" + side], cheek_top, cheek_bottom, right * s, 0.018, 0.006)
+		# A buckle and a keeper part way up the cheekpiece.
+		var buckle: Vector3 = cheek_bottom.lerp(cheek_top, 0.4) + right * s * 0.004
+		var down: Vector3 = (cheek_bottom - cheek_top).normalized()
+		_place_strap(_straps["buckle_" + side], buckle - down * 0.012, buckle + down * 0.012, right * s, 0.024, 0.008)
+		_place_strap(_straps["keeper_" + side], buckle + down * 0.02, buckle + down * 0.032, right * s, 0.024, 0.009)
+		# Reins go back to the rider's hands, or rest on the neck by the
+		# withers, hanging in a gentle curve.
 		var hand: Vector3
 		if rider:
 			hand = _bone_position("hand_" + side) + Vector3(0, -0.02, 0)
 		else:
 			hand = saddle * Vector3(s * 0.12, 0.06, -0.48)
-		var sag := bit.lerp(hand, 0.55) + Vector3(0, -0.06 if rider else -0.14, 0)
-		_place_strap(_straps["rein_" + side], bit, sag, right * s, 0.016, 0.006)
-		_place_strap(_straps["rein_end_" + side], sag, hand, right * s, 0.016, 0.006)
+		var sag := Vector3(0, -0.06 if rider else -0.14, 0)
+		var pull := bit.lerp(hand, 0.5) + sag * 2.0
+		var pieces: Array = _reins[side]
+		var last := bit
+		for i in pieces.size():
+			var t := float(i + 1) / pieces.size()
+			var next := bit.lerp(pull, t).lerp(pull.lerp(hand, t), t)
+			var dir := (next - last).normalized()
+			# Overlap the pieces a little so the bends don't show gaps.
+			_place_strap(pieces[i], last - dir * 0.004, next + dir * 0.004, right * s, 0.016, 0.005)
+			last = next
 
 
 func _follow_stirrups(saddle: Transform3D) -> void:
 	for s in [-1.0, 1.0]:
 		var side := "r" if s > 0.0 else "l"
-		var top := Vector3(s * (_back_width(0.1) + 0.016), -0.1 + _back_rise(-0.06), -0.06) * body_scale
+		var top := Vector3(s * (_back_width(0.1) + 0.03), -0.1 + _back_rise(-0.06), -0.06) * body_scale
 		var iron: Vector3
 		if rider:
 			iron = saddle.affine_inverse() * _bone_position("ball_" + side) + Vector3(0, -0.01, 0)
 		else:
 			# Run up the leather out of the way, as in a stable.
-			iron = Vector3(s * (_back_width(0.24) + 0.03), -0.24, -0.06) * body_scale
-		_place_strap(_straps["leather_" + side], top, iron + Vector3(0, 0.05, 0), Vector3(s, 0, 0), 0.025, 0.006)
-		var ring: MeshInstance3D = _rings["iron_" + side]
+			iron = Vector3(s * (_back_width(0.24) + 0.04), -0.26, -0.06) * body_scale
+		_place_strap(_straps["leather_" + side], top, iron + Vector3(0, 0.115, 0), Vector3(s, 0, 0), 0.025, 0.005)
+		var ring: Node3D = _rings["iron_" + side]
 		ring.transform = Transform3D(Basis(Vector3.RIGHT, Vector3.FORWARD, Vector3.UP), iron)
 
 
@@ -492,10 +700,10 @@ func _add(mesh: Mesh, material: Material, parent: Node3D) -> MeshInstance3D:
 	return mi
 
 
-## A unit torus (radius 1) as an ellipse around `centre`, facing `normal`.
+## A band loop (_band_loop) as a rounded square round `centre`, `size`
+## across and up, facing `normal`.
 func _place_ring(mi: MeshInstance3D, centre: Vector3, across: Vector3, up: Vector3, normal: Vector3, size: Vector2) -> void:
-	# The tube is 0.1 deep, so this makes the strap about 2 cm wide.
-	mi.transform = Transform3D(Basis(across * size.x, normal * 0.2, up * size.y), centre)
+	mi.transform = Transform3D(Basis(across * size.x, normal * BAND_WIDTH, up * size.y), centre)
 
 
 ## A unit box stretched from `from` to `to`, `width` wide and `thick` deep,
