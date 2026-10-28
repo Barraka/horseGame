@@ -27,6 +27,9 @@ uniform int leg_marking = 0;    // 0 none, 1 front socks, 2 hind socks, 3 four s
 uniform float glitter : hint_range(0.0, 1.0) = 0.0;
 uniform vec3 glitter_color : source_color = vec3(1.0, 0.85, 0.4);
 uniform bool glitter_rainbow = false;
+// The model's own tail is a solid lump; when hair.gd gives the horse a real
+// tail of strands, the lump is hidden (all but a short stub at the dock).
+uniform bool hide_tail = false;
 
 const vec3 MUD = vec3(0.3, 0.22, 0.14);
 const vec3 DUST = vec3(0.62, 0.53, 0.42);
@@ -105,6 +108,13 @@ vec3 hue(float h) {
 	return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
 }
 
+// Where things are in the texture: the tail's island (its root end is at
+// the right), and the single spot of colour each eyeball is painted with
+// (the walk file paints the two eyes differently; the trot and run files
+// each use one spot for both).
+const vec4 TAIL_ISLAND = vec4(0.368, 0.853, 0.6, 0.998);
+const vec2 EYES[4] = vec2[](vec2(0.5667, 0.2139), vec2(0.6070, 0.7557), vec2(0.3083, 0.9557), vec2(0.9668, 0.1476));
+
 // Brightness of the texture's body and points, measured from the texture.
 const float BODY_LUMA = 0.57;
 const float POINTS_LUMA = 0.21;
@@ -114,6 +124,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (hide_tail && UV.x > TAIL_ISLAND.x && UV.x < TAIL_ISLAND.z && UV.y > TAIL_ISLAND.y && UV.y < TAIL_ISLAND.w) {
+		discard;
+	}
 	vec3 tex = texture(albedo_texture, UV).rgb;
 	float luma = dot(tex, vec3(0.299, 0.587, 0.114));
 	float t = smoothstep(0.25, 0.45, luma);
@@ -143,10 +156,19 @@ void fragment() {
 	color = mix(color, DUST * (0.7 + 0.3 * luma), dust);
 	color = mix(color, MUD * (0.8 + 0.4 * patches), mud);
 	ALBEDO = color;
-	ROUGHNESS = mix(mix(0.75, 0.32, gloss), 0.95, max(mud, dust));
-	SPECULAR = 0.5;
-	RIM = 0.25 * gloss * (1.0 - dirt);
-	RIM_TINT = 0.5;
+	// A groomed coat has a satin sheen: soft broad highlights from the
+	// hair, a thin glossy layer on top, and a fine grain that runs with the
+	// hair so it doesn't read as plastic.
+	float clean = 1.0 - max(mud, dust);
+	float grain = noise(UV * vec2(900.0, 140.0)) * 0.5 + noise(UV * vec2(2200.0, 300.0)) * 0.5;
+	ROUGHNESS = mix(mix(0.78, 0.42, gloss) + (grain - 0.5) * 0.18, 0.95, max(mud, dust));
+	SPECULAR = 0.45;
+	CLEARCOAT = 0.45 * gloss * clean;
+	CLEARCOAT_ROUGHNESS = mix(0.5, 0.28, gloss) + grain * 0.12;
+	RIM = 0.35 * gloss * (1.0 - dirt);
+	RIM_TINT = 0.65;
+	// Light glows through thin ears and the edges of the nostrils.
+	BACKLIGHT = color * 0.25;
 	// Glitter: tiny sparkles that twinkle as the horse moves and the light
 	// catches them.
 	if (glitter > 0.0) {
@@ -156,5 +178,21 @@ void fragment() {
 		vec3 tint = glitter_rainbow ? hue(c.y + TIME * 0.05) : glitter_color;
 		ALBEDO = mix(ALBEDO, tint, spark * 0.6);
 		EMISSION = tint * spark * glitter * 1.6;
+	}
+	// The eyes: dark, wet and glassy, catching the sky.
+	bool eye = false;
+	for (int i = 0; i < 4; i++) {
+		eye = eye || distance(UV, EYES[i]) < 0.0008;
+	}
+	if (eye) {
+		EMISSION = vec3(0.0);
+		BACKLIGHT = vec3(0.0);
+		float iris = smoothstep(0.2, 0.9, dot(NORMAL, VIEW));
+		ALBEDO = mix(vec3(0.01, 0.008, 0.006), vec3(0.09, 0.05, 0.025), iris);
+		ROUGHNESS = 0.18;
+		SPECULAR = 0.3;
+		CLEARCOAT = 0.5;
+		CLEARCOAT_ROUGHNESS = 0.03;
+		RIM = 0.2;
 	}
 }

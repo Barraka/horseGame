@@ -65,7 +65,8 @@ const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, 
 const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's back, in metres
 const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "fr_low", "fr_high", "hl_low", "hl_high", "hr_low", "hr_high"]
 ## The grooming salon's braids and tail bow follow these (tools/groom_track.py).
-const GROOM_MARKS := ["croup", "dock", "crest_0", "crest_1", "crest_2", "crest_3", "crest_4", "crest_5", "crest_6"]
+const GROOM_MARKS := ["croup", "dock", "crest_0", "crest_1", "crest_2", "crest_3", "crest_4", "crest_5", "crest_6",
+	"tail_0", "tail_1", "tail_2", "tail_3", "tail_4", "tail_5"]
 
 @export_dir var gait_set_dir := "res://assets/horse/gaits"
 @export var with_rider := true   ## Seat the player's rider on the gait set horse
@@ -74,6 +75,7 @@ const GROOM_MARKS := ["croup", "dock", "crest_0", "crest_1", "crest_2", "crest_3
 @export var rider_look: Dictionary = {}   ## How the rider looks (rider.gd), when not the player's
 @export_file("*.glb", "*.gltf") var model_path := "res://assets/horse/horse.glb"
 @export var model_length := 2.6        ## Nose-to-tail length in metres
+@export var simple_hair := false   ## Fewer hair strands (horses standing in the stalls)
 @export var model_yaw_offset := 0.0    ## Degrees; try 180 if the model rides backwards
 @export var coat_color := Color(0.5, 0.26, 0.12)   ## Bay
 @export var points_color := Color(0.08, 0.06, 0.05) ## Mane, tail and lower legs
@@ -114,6 +116,8 @@ var _saddle_track: Dictionary = {}   # Where the back moves in each gait clip (t
 var _saddle: Node3D                  # Saddle and rider, moved with the horse's back
 var _rider: Node3D
 var _tack: Node3D
+var _hair: Node3D   ## Mane, forelock and tail (hair.gd)
+var _bridle_marks: Array[String] = []   ## The measured points the bridle lies along
 var _rest_pitch := 0.0
 var _phase := 0.0
 var _ridden := 0.0   # Metres ridden since the stable was last told
@@ -183,6 +187,18 @@ func set_coat(body: Color, points: Color, strength := 1.0) -> void:
 		_coat_material.set_shader_parameter("pattern", coat_pattern)
 		_coat_material.set_shader_parameter("pattern_color", pattern_color)
 		_coat_material.set_shader_parameter("pattern_seed", pattern_seed)
+	if _hair:
+		_hair.color = _hair_color()
+		_hair.build()
+
+
+## The mane and tail: the coat's points colour (black on a bay), kept from
+## going quite black so the hair still catches the light.
+func _hair_color() -> Color:
+	var c := points_color
+	if coat_strength <= 0.0:
+		c = Color(0.12, 0.08, 0.05)
+	return c.lerp(Color(0.12, 0.1, 0.09), 0.25 if c.get_luminance() < 0.08 else 0.0)
 
 
 ## Give the horse the coat of one of the stable's horses (stable_data.gd HORSES).
@@ -232,6 +248,9 @@ func set_rider_visible(on: bool) -> void:
 func set_tack(config: Dictionary) -> void:
 	tack = config
 	_set_groom()
+	if _hair and _hair.braided != (config.get("mane", 0) > 0):
+		_hair.braided = config.get("mane", 0) > 0
+		_hair.build()
 	if _tack:
 		_tack.mane_color = points_color
 		_tack.build(config, _saddle)
@@ -620,6 +639,14 @@ func _build_gait_set() -> void:
 	_body.scale = body_shape
 	_show_gait_model(0)
 	_build_saddle()
+	if _saddle_track[GAIT_SET[0].file].has("dock"):
+		_hair = preload("res://scripts/hair.gd").new()
+		_hair.name = "Hair"
+		_hair.color = _hair_color()
+		_hair.braided = tack.get("mane", 0) > 0
+		_hair.simple = simple_hair
+		_visual.add_child(_hair)
+		_coat_material.set_shader_parameter("hide_tail", true)
 
 
 ## All three files share one coat texture, so they share one coat material.
@@ -675,6 +702,10 @@ func _animate_gait_set(delta: float) -> void:
 		var travel := _track_point(index, "seat", player.current_animation_position).x - _track_point(index, "seat", 0.0).x
 		model.position.x = entry.offset.x - travel
 	_follow_back()
+	if _hair:
+		var marks := _tack_marks()
+		marks.withers = _back_points(_set_active, player.current_animation_position)[2]
+		_hair.follow(marks, speed, delta)
 
 
 ## The tack (scripts/tack.gd), with the player's rider in the saddle when
@@ -765,9 +796,18 @@ func _tack_marks() -> Dictionary:
 	var marks := {}
 	for mark in TACK_MARKS:
 		marks[mark] = to_visual * _track_point(_set_active, mark, time)
-	if _saddle_track[GAIT_SET[_set_active].file].has("dock"):
+	var track: Dictionary = _saddle_track[GAIT_SET[_set_active].file]
+	if track.has("dock"):
 		for mark in GROOM_MARKS:
 			marks[mark] = to_visual * _track_point(_set_active, mark, time)
+	# Where the bridle lies round the head (groom_track.py).
+	if _bridle_marks.is_empty():
+		for mark in track:
+			if mark.begins_with("noseband_") or mark.begins_with("headpiece_") or mark.begins_with("brow_") \
+					or mark.begins_with("cheek_top_") or mark.begins_with("bit_"):
+				_bridle_marks.append(mark)
+	for mark in _bridle_marks:
+		marks[mark] = to_visual * _track_point(_set_active, mark, time)
 	return marks
 
 

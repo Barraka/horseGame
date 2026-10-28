@@ -90,7 +90,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/stable_barn.gd` | The stable building: aisle, stalls with your horses in them, lanterns, hay and tack |
 | `scripts/stable_data.gd` | Your horses (names and coat colours), which one you ride, and how well each is looked after |
 | `scripts/horse_care.gd` | Feeding, brushing and petting in the stable |
-| `scripts/tack.gd` | The tack (saddle pad, saddle, stirrups, bridle, reins, leg wraps), built from simple shapes and moved along with the horse; add colours to its lists |
+| `scripts/tack.gd`, `shaders/tack.gdshader` | The tack (quilted saddle pad with piping, saddle with flaps, knee rolls and girth, stirrups, stitched bridle, curved reins, bandage leg wraps), shaped to the horse in code and moved along with it; add colours to its lists |
 | `scripts/tack_panel.gd` | The stable's Tack and Salon panels |
 | `scripts/competitions.gd` | Judge Clara, the show jumping, trail race, dressage and cross-country cups, the other riders and the results |
 | `scripts/dressage.gd` | The dressage letters round the arena, the tests for each cup and their marks |
@@ -107,8 +107,9 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `assets/rider/` | Character parts (bodies, heads, hair, outfits) from Quaternius |
 | `tools/prepare_rider.py` | Copies the character parts out of the Quaternius downloads into `assets/rider/` |
 | `tools/saddle_track.py` | Measures where the saddle, bridle and leg wraps sit on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
-| `shaders/coat.gdshader` | Recolours the horse's coat, paints white markings and glitter, and adds mud when it's dirty |
-| `tools/groom_track.py` | Measures where braids and the tail bow go in each gait, and paints the map of where face and leg markings can be (writes `assets/horse/gaits/groom_track.json` and `markings.png`) |
+| `shaders/coat.gdshader` | Recolours the horse's coat with a satin sheen, makes the eyes glassy, hides the model's own tail, paints white markings and glitter, and adds mud when it's dirty |
+| `scripts/hair.gd`, `shaders/hair.gdshader` | The horse's mane, forelock and tail: strands of hair that lie along the neck, hang down the model's own (hidden) tail, and swing as the horse moves |
+| `tools/groom_track.py` | Measures where braids, the tail bow and the hair go in each gait, and paints the map of where face and leg markings can be (writes `assets/horse/gaits/groom_track.json` and `markings.png`) |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
 | `scripts/world.gd` | Terrain, arena, trail, lake shape, where trees and bushes grow, rocks and wildflowers |
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
