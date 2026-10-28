@@ -117,6 +117,7 @@ var _saddle: Node3D                  # Saddle and rider, moved with the horse's 
 var _rider: Node3D
 var _tack: Node3D
 var _hair: Node3D   ## Mane, forelock and tail (hair.gd)
+var _bridle_marks: Array[String] = []   ## The measured points the bridle lies along
 var _rest_pitch := 0.0
 var _phase := 0.0
 var _ridden := 0.0   # Metres ridden since the stable was last told
@@ -795,9 +796,18 @@ func _tack_marks() -> Dictionary:
 	var marks := {}
 	for mark in TACK_MARKS:
 		marks[mark] = to_visual * _track_point(_set_active, mark, time)
-	if _saddle_track[GAIT_SET[_set_active].file].has("dock"):
+	var track: Dictionary = _saddle_track[GAIT_SET[_set_active].file]
+	if track.has("dock"):
 		for mark in GROOM_MARKS:
 			marks[mark] = to_visual * _track_point(_set_active, mark, time)
+	# Where the bridle lies round the head (groom_track.py).
+	if _bridle_marks.is_empty():
+		for mark in track:
+			if mark.begins_with("noseband_") or mark.begins_with("headpiece_") or mark.begins_with("brow_") \
+					or mark.begins_with("cheek_top_") or mark.begins_with("bit_"):
+				_bridle_marks.append(mark)
+	for mark in _bridle_marks:
+		marks[mark] = to_visual * _track_point(_set_active, mark, time)
 	return marks
 
 

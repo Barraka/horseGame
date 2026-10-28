@@ -109,10 +109,11 @@ vec3 hue(float h) {
 }
 
 // Where things are in the texture: the tail's island (its root end is at
-// the right), and the single spot of colour each eyeball is painted with.
+// the right), and the single spot of colour each eyeball is painted with
+// (the walk file paints the two eyes differently; the trot and run files
+// each use one spot for both).
 const vec4 TAIL_ISLAND = vec4(0.368, 0.853, 0.6, 0.998);
-const vec2 EYE_LEFT = vec2(0.5667, 0.2139);
-const vec2 EYE_RIGHT = vec2(0.6070, 0.7557);
+const vec2 EYES[4] = vec2[](vec2(0.5667, 0.2139), vec2(0.6070, 0.7557), vec2(0.3083, 0.9557), vec2(0.9668, 0.1476));
 
 // Brightness of the texture's body and points, measured from the texture.
 const float BODY_LUMA = 0.57;
@@ -179,7 +180,11 @@ void fragment() {
 		EMISSION = tint * spark * glitter * 1.6;
 	}
 	// The eyes: dark, wet and glassy, catching the sky.
-	if (distance(UV, EYE_LEFT) < 0.002 || distance(UV, EYE_RIGHT) < 0.002) {
+	bool eye = false;
+	for (int i = 0; i < 4; i++) {
+		eye = eye || distance(UV, EYES[i]) < 0.0008;
+	}
+	if (eye) {
 		EMISSION = vec3(0.0);
 		BACKLIGHT = vec3(0.0);
 		float iris = smoothstep(0.2, 0.9, dot(NORMAL, VIEW));

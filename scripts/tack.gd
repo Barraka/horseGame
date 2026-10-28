@@ -95,9 +95,6 @@ const GROOM_KEYS := ["face", "legs", "mane", "tail", "ribbon", "glitter"]
 const DEFAULT := {"pad": 0, "trim": 0, "saddle": 1, "bridle": 1, "wraps": 1,
 	"face": 0, "legs": 0, "mane": 0, "tail": 0, "ribbon": 0, "glitter": 0}
 
-## Sizes in metres, fitted to the horse model by eye.
-const NOSEBAND_SIZE := Vector2(0.1, 0.135) ## Half-width and half-height
-const HEADPIECE_SIZE := Vector2(0.13, 0.22)
 const LEGS := ["fl", "fr", "hl", "hr"]
 
 var config: Dictionary = DEFAULT.duplicate()
@@ -142,6 +139,7 @@ func build(new_config: Dictionary, saddle_root: Node3D) -> void:
 	_rings.clear()
 	_straps.clear()
 	_reins.clear()
+	_bands.clear()
 	_make_materials()
 	_saddle_parts = Node3D.new()
 	_saddle_parts.name = "SaddleParts"
@@ -419,17 +417,24 @@ func _tube(points: Array[Vector3], radius: float) -> ArrayMesh:
 
 # --- Bridle -------------------------------------------------------------------
 
-const BAND_WIDTH := 0.022      ## Noseband and headpiece straps
+const BAND_WIDTH := 0.022      ## Noseband and crownpiece
+const STRAP_THICK := 0.005
 const REIN_PIECES := 10
 
 var _reins := {}    ## "l"/"r" -> the pieces of each rein, nose to hand
+var _bands := {}    ## Name -> ImmediateMesh redrawn along the head each frame
 var _strap: ArrayMesh
 
 
 func _build_bridle() -> void:
-	var loop := _band_loop()
-	for name in ["noseband", "headpiece"]:
-		_rings[name] = _add(loop, _materials.bridle, self)
+	# The noseband, the crownpiece with its throatlatch, the browband and
+	# the cheekpieces lie along points measured round the head
+	# (tools/groom_track.py), so they sit on it whatever it does.
+	for name in ["noseband", "headpiece", "browband", "cheekpiece_l", "cheekpiece_r"]:
+		var mesh := ImmediateMesh.new()
+		_bands[name] = mesh
+		_rings[name] = _add(mesh, _materials.trim if name == "browband" else _materials.bridle, self)
+		_rings[name].extra_cull_margin = 1.0
 	var bit := TorusMesh.new()
 	bit.inner_radius = 0.024
 	bit.outer_radius = 0.032
@@ -437,44 +442,12 @@ func _build_bridle() -> void:
 	bit.ring_segments = 8
 	for side in ["l", "r"]:
 		_rings["bit_" + side] = _add(bit, _materials.metal, self)
-		_straps["cheekpiece_" + side] = _add(_strap_mesh(), _materials.bridle, self)
 		_straps["buckle_" + side] = _add(_strap_mesh(), _materials.metal, self)
 		_straps["keeper_" + side] = _add(_strap_mesh(), _materials.bridle, self)
 		var pieces: Array[MeshInstance3D] = []
 		for i in REIN_PIECES:
 			pieces.append(_add(_strap_mesh(), _materials.bridle, self))
 		_reins[side] = pieces
-	_straps.browband = _add(_strap_mesh(), _materials.trim, self)
-
-
-## A flat leather band round a loop shaped like a rounded square (the
-## horse's head is squarer than an ellipse), radius 1 in X and Z, BAND
-## width along Y; placed and sized by _place_ring.
-func _band_loop() -> ArrayMesh:
-	const STEPS := 48
-	const POWER := 2.6
-	const THICK := 0.06
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var corners := []   # Each step: inner bottom, inner top, outer bottom, outer top
-	for i in STEPS + 1:
-		var a := TAU * i / STEPS
-		var c := cos(a)
-		var s := sin(a)
-		var p := Vector3(signf(c) * pow(absf(c), 2.0 / POWER), 0.0, signf(s) * pow(absf(s), 2.0 / POWER))
-		var v := float(i) / STEPS * 0.8
-		corners.append([[p + Vector3(0, -0.5, 0), Vector2(0.0, v)], [p + Vector3(0, 0.5, 0), Vector2(STRAP_UV, v)],
-			[p * (1.0 + THICK) + Vector3(0, -0.5, 0), Vector2(0.0, v)], [p * (1.0 + THICK) + Vector3(0, 0.5, 0), Vector2(STRAP_UV, v)]])
-	var quad := func(a: Array, b: Array, c: Array, d: Array) -> void:
-		for v in [a, b, c, c, b, d]:
-			st.set_uv(v[1])
-			st.add_vertex(v[0])
-	for face in [[2, 3], [1, 0], [3, 1], [0, 2]]:
-		st.set_smooth_group(face[0] * 4 + face[1])
-		for i in STEPS:
-			quad.call(corners[i][face[0]], corners[i][face[1]], corners[i + 1][face[0]], corners[i + 1][face[1]])
-	st.generate_normals()
-	return st.commit()
 
 
 ## A unit strap (a box from -0.5 to 0.5: X across it, Y through it, Z
@@ -614,7 +587,6 @@ func follow(points: Dictionary, radii: Dictionary, saddle: Transform3D) -> void:
 func _follow_head(points: Dictionary, saddle: Transform3D) -> void:
 	var nose: Vector3 = points.nose
 	var cheek: Vector3 = points.cheek
-	var muzzle: Vector3 = points.muzzle
 	# The head's own directions: along it towards the nose, up through the
 	# forehead, and out to the horse's right.
 	var ahead := (nose - cheek).normalized()
@@ -622,30 +594,51 @@ func _follow_head(points: Dictionary, saddle: Transform3D) -> void:
 	var right := ahead.cross(up).normalized()
 	if right.x < 0.0:
 		right = -right
+	# Off the head: away from the line down its middle.
+	var off := func(p: Vector3) -> Vector3:
+		var on_line := cheek + ahead * ahead.dot(p - cheek)
+		return (p - on_line).normalized()
 
-	var noseband := muzzle.lerp(cheek, 0.35) + up * 0.01
-	_place_ring(_rings.noseband, noseband, right, up, ahead, NOSEBAND_SIZE)
-	var poll := cheek - ahead * 0.02 + up * 0.0
-	var tilt := ahead.rotated(right, -0.35)
-	var tilt_up := up.rotated(right, -0.35)
-	_place_ring(_rings.headpiece, poll, right, tilt_up, tilt, HEADPIECE_SIZE)
-	var brow := poll + ahead * 0.06 + up * (HEADPIECE_SIZE.y * 0.82)
-	_place_strap(_straps.browband, brow - right * 0.09, brow + right * 0.09, ahead, 0.024, 0.008)
+	var noseband := _marks(points, "noseband_")
+	var headpiece := _marks(points, "headpiece_")
+	_lay_band("noseband", noseband, _away_from_middle(noseband), BAND_WIDTH, true)
+	_lay_band("headpiece", headpiece, _away_from_middle(headpiece), BAND_WIDTH, true)
+	var brow := _marks(points, "brow_")
+	var brow_out: Array[Vector3] = []
+	for p in brow:
+		brow_out.append(off.call(p))
+	_lay_band("browband", brow, brow_out, 0.024, false)
 
-	var mouth := nose - ahead * 0.07 - up * 0.04
+	var noseband_middle := _middle(noseband)
 	for s in [-1.0, 1.0]:
 		var side := "r" if s > 0.0 else "l"
-		var bit: Vector3 = mouth + right * s * (NOSEBAND_SIZE.x + 0.01)
+		var bit: Vector3 = points["bit_" + side]
 		var bit_ring: MeshInstance3D = _rings["bit_" + side]
-		bit_ring.transform = Transform3D(Basis(ahead, -right, up), bit)
-		var cheek_top: Vector3 = poll + right * s * (HEADPIECE_SIZE.x + 0.005)
-		var cheek_bottom: Vector3 = bit + up * 0.028
-		_place_strap(_straps["cheekpiece_" + side], cheek_top, cheek_bottom, right * s, 0.018, 0.006)
+		bit_ring.transform = Transform3D(Basis(ahead, -right * s, up), bit + off.call(bit) * 0.012)
+		# The cheekpiece runs from the crownpiece down the side of the face,
+		# over the noseband, to the bit.
+		var top: Vector3 = points["cheek_top_" + side]
+		var over := noseband[0]
+		var toward := (bit - noseband_middle).normalized()
+		for p in noseband:
+			if (p - noseband_middle).normalized().dot(toward) > (over - noseband_middle).normalized().dot(toward):
+				over = p
+		over += off.call(over) * STRAP_THICK
+		var line: Array[Vector3] = []
+		var outs: Array[Vector3] = []
+		for k in 7:
+			var t := k / 6.0
+			var p := top.lerp(over, t / 0.7) if t < 0.7 else over.lerp(bit, (t - 0.7) / 0.3)
+			line.append(p)
+			outs.append(off.call(p))
+		_lay_band("cheekpiece_" + side, line, outs, 0.018, false)
 		# A buckle and a keeper part way up the cheekpiece.
-		var buckle: Vector3 = cheek_bottom.lerp(cheek_top, 0.4) + right * s * 0.004
-		var down: Vector3 = (cheek_bottom - cheek_top).normalized()
-		_place_strap(_straps["buckle_" + side], buckle - down * 0.012, buckle + down * 0.012, right * s, 0.024, 0.008)
-		_place_strap(_straps["keeper_" + side], buckle + down * 0.02, buckle + down * 0.032, right * s, 0.024, 0.009)
+		var buckle: Vector3 = over.lerp(top, 0.3)
+		var down: Vector3 = (over - top).normalized()
+		var face: Vector3 = off.call(buckle)
+		buckle += face * 0.004
+		_place_strap(_straps["buckle_" + side], buckle - down * 0.012, buckle + down * 0.012, face, 0.024, 0.006)
+		_place_strap(_straps["keeper_" + side], buckle + down * 0.02, buckle + down * 0.032, face, 0.024, 0.007)
 		# Reins go back to the rider's hands, or rest on the neck by the
 		# withers, hanging in a gentle curve.
 		var hand: Vector3
@@ -664,6 +657,80 @@ func _follow_head(points: Dictionary, saddle: Transform3D) -> void:
 			# Overlap the pieces a little so the bends don't show gaps.
 			_place_strap(pieces[i], last - dir * 0.004, next + dir * 0.004, right * s, 0.016, 0.005)
 			last = next
+
+
+## The measured points `prefix`0, `prefix`1, ... in order.
+func _marks(points: Dictionary, prefix: String) -> Array[Vector3]:
+	var line: Array[Vector3] = []
+	while points.has(prefix + str(line.size())):
+		line.append(points[prefix + str(line.size())])
+	return line
+
+
+func _middle(line: Array[Vector3]) -> Vector3:
+	var sum := Vector3.ZERO
+	for p in line:
+		sum += p
+	return sum / maxf(line.size(), 1)
+
+
+func _away_from_middle(loop: Array[Vector3]) -> Array[Vector3]:
+	var middle := _middle(loop)
+	var outs: Array[Vector3] = []
+	for p in loop:
+		outs.append((p - middle).normalized())
+	return outs
+
+
+## Lay a leather band along `line` (round into a loop when `closed`),
+## `width` wide, its face turned to `outs`. The band's node sits at the
+## band's middle, so it can be found there.
+func _lay_band(name: String, line: Array[Vector3], outs: Array[Vector3], width: float, closed: bool) -> void:
+	var mesh: ImmediateMesh = _bands[name]
+	var node: MeshInstance3D = _rings[name]
+	mesh.clear_surfaces()
+	var count := line.size()
+	if count < 2:
+		return
+	var middle := _middle(line)
+	node.transform = Transform3D(Basis(), middle)
+	var rows := []   # Each: [centre, half across, out, distance along]
+	var travelled := 0.0
+	for k in count + (1 if closed else 0):
+		var i := k % count
+		var prev := line[(i - 1 + count) % count] if closed or i > 0 else line[i]
+		var next := line[(i + 1) % count] if closed or i < count - 1 else line[i]
+		var along := (next - prev).normalized()
+		var across := along.cross(outs[i]).normalized()
+		if k > 0:
+			travelled += line[i].distance_to(line[(k - 1) % count])
+		rows.append([line[i] - middle, across * width * 0.5, outs[i], travelled])
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var vertex := func(p: Vector3, normal: Vector3, uv: Vector2) -> void:
+		mesh.surface_set_normal(normal)
+		mesh.surface_set_uv(uv)
+		mesh.surface_add_vertex(p)
+	for k in rows.size() - 1:
+		var a: Array = rows[k]
+		var b: Array = rows[k + 1]
+		# The face, then the two edges down to the skin.
+		var corners := [
+			[a[0] - a[1], b[0] - b[1], a[0] + a[1], b[0] + b[1], a[2], b[2], 0.0, STRAP_UV],
+			[a[0] - a[1] - a[2] * STRAP_THICK, b[0] - b[1] - b[2] * STRAP_THICK, a[0] - a[1], b[0] - b[1], -a[1].normalized(), -b[1].normalized(), 0.0, 0.002],
+			[a[0] + a[1], b[0] + b[1], a[0] + a[1] - a[2] * STRAP_THICK, b[0] + b[1] - b[2] * STRAP_THICK, a[1].normalized(), b[1].normalized(), 0.0, 0.002],
+		]
+		for c in corners:
+			var v0 := Vector2(c[6], a[3])
+			var v1 := Vector2(c[6], b[3])
+			var v2 := Vector2(c[7], a[3])
+			var v3 := Vector2(c[7], b[3])
+			vertex.call(c[0], c[4], v0)
+			vertex.call(c[1], c[5], v1)
+			vertex.call(c[2], c[4], v2)
+			vertex.call(c[2], c[4], v2)
+			vertex.call(c[1], c[5], v1)
+			vertex.call(c[3], c[5], v3)
+	mesh.surface_end()
 
 
 func _follow_stirrups(saddle: Transform3D) -> void:
@@ -698,12 +765,6 @@ func _add(mesh: Mesh, material: Material, parent: Node3D) -> MeshInstance3D:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 	return mi
-
-
-## A band loop (_band_loop) as a rounded square round `centre`, `size`
-## across and up, facing `normal`.
-func _place_ring(mi: MeshInstance3D, centre: Vector3, across: Vector3, up: Vector3, normal: Vector3, size: Vector2) -> void:
-	mi.transform = Transform3D(Basis(across * size.x, normal * BAND_WIDTH, up * size.y), centre)
 
 
 ## A unit box stretched from `from` to `to`, `width` wide and `thick` deep,
