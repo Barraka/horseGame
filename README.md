@@ -107,9 +107,9 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `assets/rider/` | Character parts (bodies, heads, hair, outfits) from Quaternius |
 | `tools/prepare_rider.py` | Copies the character parts out of the Quaternius downloads into `assets/rider/` |
 | `tools/saddle_track.py` | Measures where the saddle, bridle and leg wraps sit on the horse in each gait (writes `assets/horse/gaits/saddle_track.json`) |
-| `shaders/coat.gdshader` | Recolours the horse's coat with a satin sheen, makes the eyes glassy, hides the model's own tail, paints white markings and glitter, and adds mud when it's dirty |
+| `shaders/coat.gdshader` | Recolours the horse's coat with a satin sheen, makes the eyes glassy, hides the model's own tail, tucks the skin in a little under the tack so it never pokes through, paints white markings and glitter, and adds mud when it's dirty |
 | `scripts/hair.gd`, `shaders/hair.gdshader` | The horse's mane, forelock and tail: strands of hair that lie along the neck, hang down the model's own (hidden) tail, and swing as the horse moves |
-| `tools/groom_track.py` | Measures where braids, the tail bow and the hair go in each gait, and paints the map of where face and leg markings can be (writes `assets/horse/gaits/groom_track.json` and `markings.png`) |
+| `tools/groom_track.py` | Measures where braids, the tail bow, the hair and the bridle straps go in each gait, and paints the maps of where face and leg markings can be and where the tack covers the skin (writes `assets/horse/gaits/groom_track.json`, `markings.png` and `tack_mask.png`) |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
 | `scripts/world.gd` | Terrain, arena, trail, lake shape, where trees and bushes grow, rocks and wildflowers |
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |

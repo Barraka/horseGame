@@ -234,6 +234,20 @@ func set_body_shape(shape: Vector3) -> void:
 func set_tack_visible(on: bool) -> void:
 	if _tack:
 		_tack.set_shown(on)
+		_set_tuck()
+
+
+## Tuck the skin in a little under the tack (coat.gdshader), so the horse's
+## moving muscles never poke through the saddle, girth, bridle or wraps.
+func _set_tuck() -> void:
+	if not _coat_material:
+		return
+	var on := _tack != null and _tack.visible
+	var unit := 1.0 / _set_scale   # Model units in a metre
+	var wraps: bool = on and _tack.config.get("wraps", 0) > 0
+	_coat_material.set_shader_parameter("tuck_saddle", 0.02 * unit if on else 0.0)
+	_coat_material.set_shader_parameter("tuck_bridle", 0.01 * unit if on else 0.0)
+	_coat_material.set_shader_parameter("tuck_wraps", 0.01 * unit if wraps else 0.0)
 
 
 ## Seat the rider in the saddle, or take them off (getting off to walk).
@@ -255,6 +269,7 @@ func set_tack(config: Dictionary) -> void:
 		_tack.mane_color = points_color
 		_tack.build(config, _saddle)
 		_follow_back()
+		_set_tuck()
 
 
 ## The grooming salon's markings and glitter, painted by the coat shader.
@@ -656,6 +671,7 @@ func _coat(original: Material) -> ShaderMaterial:
 		_coat_material.shader = preload("res://shaders/coat.gdshader")
 		_coat_material.set_shader_parameter("albedo_texture", (original as BaseMaterial3D).albedo_texture)
 		_coat_material.set_shader_parameter("markings_map", load(gait_set_dir.path_join("markings.png")))
+		_coat_material.set_shader_parameter("tack_mask", load(gait_set_dir.path_join("tack_mask.png")))
 		set_coat(coat_color, points_color, coat_strength)
 		set_dirt(dirt)
 		_set_groom()
@@ -736,6 +752,7 @@ func _build_saddle() -> void:
 		_tack.rider = _rider
 	_tack.body_scale = body_shape
 	_tack.build(tack, _saddle)
+	_set_tuck()
 	_rest_pitch = _back_pitch(_back_points(0, 0.0))
 	_follow_back()
 
@@ -804,7 +821,8 @@ func _tack_marks() -> Dictionary:
 	if _bridle_marks.is_empty():
 		for mark in track:
 			if mark.begins_with("noseband_") or mark.begins_with("headpiece_") or mark.begins_with("brow_") \
-					or mark.begins_with("cheek_top_") or mark.begins_with("bit_"):
+					or mark.begins_with("cheek_top_") or mark.begins_with("bit_") \
+					or (mark.begins_with("cheek_") and mark.substr(6, 1).is_valid_int()):
 				_bridle_marks.append(mark)
 	for mark in _bridle_marks:
 		marks[mark] = to_visual * _track_point(_set_active, mark, time)
