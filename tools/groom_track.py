@@ -19,6 +19,10 @@
      blue  height up the leg (0.5 at the knee or hock, 1 off the legs),
      alpha 0.25 on a front leg, 0.75 on a hind leg, 1 elsewhere.
    Written to assets/horse/gaits/markings.png.
+3. A tack map in the same layout, for shaders/coat.gdshader to tuck the
+   skin in a little under the tack so it never pokes through: red under
+   the saddle pad, flaps and girth, green under the bridle's straps.
+   Written to assets/horse/gaits/tack_mask.png.
 
 Usage: python3 tools/groom_track.py   (after tools/saddle_track.py)
 """
@@ -41,10 +45,11 @@ LOOP_POINTS = 24    # Round each bridle loop
 # Where the bridle goes, in metres along the head from between the eyes
 # towards the nose (behind the eyes is negative).
 NOSEBAND_AT = 0.17
-HEADPIECE_AT = -0.22
-HEADPIECE_TILT = 0.52   # The crownpiece leans back over the poll, behind the ears
+HEADPIECE_AT = -0.27
+HEADPIECE_TILT = 0.6   # The crownpiece leans back over the poll, behind the ears
 BROW_AT = -0.17
 BIT_AT = 0.31
+CHEEK_POINTS = 8   # Down each cheekpiece, between the crownpiece and the bit
 STRAP_OFF = 0.007   # How far off the skin the straps lie, in metres
 # The tail's island in the texture (u from, v from, u to, v to).
 TAIL_ISLAND = (0.355, 0.85, 0.64, 1.0)
@@ -153,10 +158,14 @@ def slice_loop(first, triangles, mid, ahead, up, across, at, tilt=0.0, below=0.4
     edges = np.unique(np.sort(np.concatenate(edges), 1), axis=0)
     t = side[edges[:, 0]] / (side[edges[:, 0]] - side[edges[:, 1]])
     points = first[edges[:, 0]] + (first[edges[:, 1]] - first[edges[:, 0]]) * t[:, None]
-    # Only the head: not the neck, nor anything far below the jaw.
+    # Only the head: not the neck, nor anything far below the jaw, nor the
+    # ears (the crownpiece goes over the poll behind them).
     height = (points - centre) @ rise / UNITS
     width = (points - centre) @ across / UNITS
-    keep = (height > -below) & (height < 0.3) & (np.abs(width) < 0.2)
+    head_up = (points - mid) @ up / UNITS
+    head_along = (points - mid) @ ahead / UNITS
+    ears = (head_up > 0.045) & (head_along < -0.15)
+    keep = (height > -below) & (height < 0.3) & (np.abs(width) < 0.2) & ~ears
     edges, t, height, width = edges[keep], t[keep], height[keep], width[keep]
     middle = np.array([(height.max() + height.min()) / 2, 0.0])
     rel = np.stack([height, width], 1) - middle
@@ -176,16 +185,55 @@ def slice_loop(first, triangles, mid, ahead, up, across, at, tilt=0.0, below=0.4
     return loop
 
 
-def follow_loop(frames, loop):
-    """A loop's spots in every frame, moved off the skin away from its middle."""
+def follow_loop(frames, loop, off=1.0):
+    """A loop's spots in every frame, moved off the skin (`off` times
+    STRAP_OFF) away from its middle."""
     out = []
     for frame in frames:
         spots = np.array([frame[i] + (frame[j] - frame[i]) * t for i, j, t, _ in loop])
         middle = spots.mean(0)
         away = spots - middle
         away /= np.linalg.norm(away, axis=1)[:, None]
-        out.append(spots + away * STRAP_OFF * UNITS)
+        out.append(spots + away * STRAP_OFF * off * UNITS)
     return np.array(out)
+
+
+def cast(first, triangles, origin, direction):
+    """The first triangle a ray from `origin` hits, and where on it (as
+    weights of its corners)."""
+    a, b, c = first[triangles[:, 0]], first[triangles[:, 1]], first[triangles[:, 2]]
+    e1, e2 = b - a, c - a
+    h = np.cross(direction, e2)
+    det = (e1 * h).sum(1)
+    ok = np.abs(det) > 1e-12
+    f = np.where(ok, 1.0 / np.where(ok, det, 1.0), 0.0)
+    to = origin - a
+    u = f * (to * h).sum(1)
+    q = np.cross(to, e1)
+    v = f * (q @ direction)
+    dist = f * (e2 * q).sum(1)
+    hits = ok & (u >= 0) & (v >= 0) & (u + v <= 1) & (dist > 0)
+    k = int(np.argmin(np.where(hits, dist, np.inf)))
+    return int(k), np.array([1 - u[k] - v[k], u[k], v[k]])
+
+
+def follow_spot(frames, triangles, hit, out, off):
+    """A spot on a triangle in every frame, moved off the skin (`off` times
+    STRAP_OFF) along the triangle's outward face."""
+    k, weights = hit
+    corners = triangles[k]
+    result = []
+    for frame in frames:
+        a, b, c = frame[corners]
+        normal = np.cross(b - a, c - a)
+        normal /= np.linalg.norm(normal)
+        if normal @ out < 0 and frame is frames[0]:
+            out = -out
+        if normal @ out < 0:
+            normal = -normal
+        result.append(weights @ frame[corners] + normal * STRAP_OFF * off * UNITS)
+        out = normal
+    return np.array(result)
 
 
 def bridle(frames, uv, triangles, nose, fwd, side):
@@ -205,15 +253,72 @@ def bridle(frames, uv, triangles, nose, fwd, side):
     arc = [k for k, spot in enumerate(loops["brow"]) if abs(spot[3]) < np.radians(80)]
     for n, k in enumerate(arc):
         points["brow_%d" % n] = spots["brow"][:, k]
-    # The cheekpieces start at the sides of the crownpiece, and the bit sits
-    # low at the corners of the mouth.
-    for name, loop, want in (("cheek_top", "headpiece", np.radians(90)), ("bit", "bit", np.radians(120))):
+    # The cheekpieces start at the sides of the crownpiece and run down the
+    # face, lying on it, to the bit, which sits low at the corners of the
+    # mouth. They cross over the noseband, so lie a little further out.
+    def sides(name, track_of, want):
         for sign in (-1.0, 1.0):
-            k = int(np.argmin([abs(spot[3] - sign * want) for spot in loops[loop]]))
-            track = spots[loop][:, k]
+            loop, spots_of = track_of
+            k = int(np.argmin([abs(spot[3] - sign * want) for spot in loop]))
+            track = spots_of[:, k]
             is_left = (track[0][side] - mid[side]) * left_sign > 0
             points[name + ("_l" if is_left else "_r")] = track
+
+    sides("cheek_top", (loops["headpiece"], spots["headpiece"]), np.radians(90))
+    sides("bit", (loops["bit"], spots["bit"]), np.radians(120))
+    # In between, the straight line from one to the other pushed out onto
+    # the skin, so the strap lies on the face instead of cutting into it.
+    for s in ("l", "r"):
+        top, bit = points["cheek_top_" + s][0], points["bit_" + s][0]
+        for n in range(CHEEK_POINTS):
+            p = top + (bit - top) * (n + 1) / (CHEEK_POINTS + 1)
+            out = p - mid
+            out -= ahead * (out @ ahead)
+            out /= np.linalg.norm(out)
+            hit = cast(first, triangles, p + out * 0.3 * UNITS, -out)
+            points["cheek_%d_%s" % (n, s)] = follow_spot(frames, triangles, hit, out, 1.8)
     return points
+
+
+def tack_cover(first, saddle, bridle_points, fwd):
+    """Each vertex's tack map values (see the top of this file)."""
+    values = np.zeros((len(first), 4))
+    values[:, 3] = 1.0
+
+    def band(x, lo, hi, soft=0.03):
+        return np.clip((x - lo + soft) / soft, 0, 1) * np.clip((hi + soft - x) / soft, 0, 1)
+
+    # The saddle, in the seat's space (tack.gd _build_saddle): metres ahead
+    # of the seat and down from the top of the back.
+    seat = np.array(saddle["seat"][0])
+    facing = np.sign(np.array(saddle["nose"][0])[fwd] - np.array(saddle["croup"][0])[fwd])
+    ahead = (first[:, fwd] - seat[fwd]) * facing / UNITS
+    d = ahead - 0.05
+    rise = d * d * np.where(d > 0, 1.0, 0.55)
+    depth = (seat[1] - first[:, 1]) / UNITS + rise
+    pad = band(ahead, -0.31, 0.33) * band(depth, -0.1, 0.36)
+    flaps = band(ahead, -0.1, 0.38) * band(depth, 0.1, 0.47)
+    girth = band(ahead, 0.07, 0.15) * band(depth, 0.36, 0.8)
+    values[:, 0] = np.maximum(np.maximum(pad, flaps), girth)
+
+    # The bridle: near the lines its straps follow.
+    lines = []
+    for name in ("noseband", "headpiece"):
+        loop = [np.array(bridle_points["%s_%d" % (name, k)][0]) for k in range(LOOP_POINTS)]
+        lines.append(loop + loop[:1])
+    lines.append([np.array(bridle_points["brow_%d" % k][0]) for k in range(len([m for m in bridle_points if m.startswith("brow_")]))])
+    noseband = np.array(lines[0][:-1])
+    for side in ("l", "r"):
+        lines.append([np.array(bridle_points[m][0]) for m in
+            ["cheek_top_" + side] + ["cheek_%d_%s" % (n, side) for n in range(CHEEK_POINTS)] + ["bit_" + side]])
+    nearest = np.full(len(first), np.inf)
+    for line in lines:
+        for a, b in zip(line, line[1:]):
+            ab = b - a
+            t = np.clip((first - a) @ ab / max(ab @ ab, 1e-9), 0, 1)
+            nearest = np.minimum(nearest, np.linalg.norm(first - (a + np.outer(t, ab)), axis=1))
+    values[:, 1] = np.clip((0.035 - nearest / UNITS) / 0.015, 0, 1)
+    return values
 
 
 def face_and_legs(first, track, fwd, side):
@@ -329,12 +434,18 @@ def main():
         for i, group in enumerate(tail_spine(first, uv, triangles, first[dock])):
             points["tail_%d" % i] = [[round(float(v), 3) for v in frame[group].mean(0)] for frame in frames]
         nose = np.array(saddle[name]["nose"][0])
-        for mark, spots in bridle(frames, uv, triangles, nose, fwd, side).items():
+        head = bridle(frames, uv, triangles, nose, fwd, side)
+        for mark, spots in head.items():
             points[mark] = [[round(float(v), 3) for v in spot] for spot in spots]
         out[name] = points
         if name == "horse_walk.glb":
             write_png(GAITS / "markings.png", paint(uv, triangles, face_and_legs(first, track, fwd, side)))
             print("wrote", GAITS / "markings.png")
+            covered = tack_cover(first, track, {m: [p[0]] for m, p in points.items()}, fwd)
+            image = paint(uv, triangles, covered)
+            image[..., 2] = 0
+            write_png(GAITS / "tack_mask.png", image)
+            print("wrote", GAITS / "tack_mask.png")
     (GAITS / "groom_track.json").write_text(json.dumps(out))
     print("wrote", GAITS / "groom_track.json")
 

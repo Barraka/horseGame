@@ -609,34 +609,29 @@ func _follow_head(points: Dictionary, saddle: Transform3D) -> void:
 		brow_out.append(off.call(p))
 	_lay_band("browband", brow, brow_out, 0.024, false)
 
-	var noseband_middle := _middle(noseband)
 	for s in [-1.0, 1.0]:
 		var side := "r" if s > 0.0 else "l"
 		var bit: Vector3 = points["bit_" + side]
 		var bit_ring: MeshInstance3D = _rings["bit_" + side]
 		bit_ring.transform = Transform3D(Basis(ahead, -right * s, up), bit + off.call(bit) * 0.012)
 		# The cheekpiece runs from the crownpiece down the side of the face,
-		# over the noseband, to the bit.
+		# lying on it, to the bit (groom_track.py measures points along it).
 		var top: Vector3 = points["cheek_top_" + side]
-		var over := noseband[0]
-		var toward := (bit - noseband_middle).normalized()
-		for p in noseband:
-			if (p - noseband_middle).normalized().dot(toward) > (over - noseband_middle).normalized().dot(toward):
-				over = p
-		over += off.call(over) * STRAP_THICK
-		var line: Array[Vector3] = []
+		var line: Array[Vector3] = [top]
+		var k := 0
+		while points.has("cheek_%d_%s" % [k, side]):
+			line.append(points["cheek_%d_%s" % [k, side]])
+			k += 1
+		line.append(bit)
 		var outs: Array[Vector3] = []
-		for k in 7:
-			var t := k / 6.0
-			var p := top.lerp(over, t / 0.7) if t < 0.7 else over.lerp(bit, (t - 0.7) / 0.3)
-			line.append(p)
+		for p in line:
 			outs.append(off.call(p))
 		_lay_band("cheekpiece_" + side, line, outs, 0.018, false)
-		# A buckle and a keeper part way up the cheekpiece.
-		var buckle: Vector3 = over.lerp(top, 0.3)
-		var down: Vector3 = (over - top).normalized()
-		var face: Vector3 = off.call(buckle)
-		buckle += face * 0.004
+		# A buckle and a keeper part way down the cheekpiece.
+		var at := mini(2, line.size() - 2)
+		var down: Vector3 = (line[at + 1] - line[at]).normalized()
+		var face: Vector3 = outs[at]
+		var buckle: Vector3 = line[at] + face * (STRAP_THICK + 0.004)
 		_place_strap(_straps["buckle_" + side], buckle - down * 0.012, buckle + down * 0.012, face, 0.024, 0.006)
 		_place_strap(_straps["keeper_" + side], buckle + down * 0.02, buckle + down * 0.032, face, 0.024, 0.007)
 		# Reins go back to the rider's hands, or rest on the neck by the

@@ -30,6 +30,14 @@ uniform bool glitter_rainbow = false;
 // The model's own tail is a solid lump; when hair.gd gives the horse a real
 // tail of strands, the lump is hidden (all but a short stub at the dock).
 uniform bool hide_tail = false;
+// Where the tack lies on the skin (tools/groom_track.py: red the saddle,
+// pad and girth, green the bridle), and how far to tuck the skin in there,
+// in the model's units, so the skin never pokes through the tack. The leg
+// wraps' place comes from the markings map.
+uniform sampler2D tack_mask : filter_linear, repeat_disable;
+uniform float tuck_saddle = 0.0;
+uniform float tuck_bridle = 0.0;
+uniform float tuck_wraps = 0.0;
 
 const vec3 MUD = vec3(0.3, 0.22, 0.14);
 const vec3 DUST = vec3(0.62, 0.53, 0.42);
@@ -120,6 +128,12 @@ const float BODY_LUMA = 0.57;
 const float POINTS_LUMA = 0.21;
 
 void vertex() {
+	vec4 under = textureLod(tack_mask, UV, 0.0);
+	vec4 m = textureLod(markings_map, UV, 0.0);
+	// The wraps go from the fetlock up the cannon (markings blue is the
+	// height up the leg, 0.5 at the knee or hock).
+	float wraps = m.a < 0.9 ? smoothstep(0.06, 0.12, m.b) * (1.0 - smoothstep(0.42, 0.48, m.b)) : 0.0;
+	VERTEX -= NORMAL * (under.r * tuck_saddle + under.g * tuck_bridle + wraps * tuck_wraps);
 	height = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y - ground_y;
 }
 
