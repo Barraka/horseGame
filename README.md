@@ -110,7 +110,9 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `shaders/coat.gdshader` | Recolours the horse's coat with a satin sheen, makes the eyes glassy, hides the model's own tail, tucks the skin in a little under the tack so it never pokes through, paints white markings and glitter, and adds mud when it's dirty |
 | `scripts/hair.gd`, `shaders/hair.gdshader` | The horse's mane, forelock and tail: strands of hair that lie along the neck, hang down the model's own (hidden) tail, and swing as the horse moves |
 | `tools/groom_track.py` | Measures where braids, the tail bow, the hair and the bridle straps go in each gait, and paints the maps of where face and leg markings can be and where the tack covers the skin (writes `assets/horse/gaits/groom_track.json`, `markings.png` and `tack_mask.png`) |
+| `tools/gait_blend.py`, `tools/mesh_order.gd` | Measures which vertices of the trot and gallop files each vertex of the walk mesh follows, so the gaits can blend (writes `assets/horse/gaits/gait_blend.json`; run `mesh_order.gd` with Godot first) |
 | `scripts/horse.gd` | Gaits, steering, jumping, model loading and the placeholder horse |
+| `scripts/gait_blend.gd` | Poses one horse mesh in every frame of the walk, trot and gallop files so the gaits blend smoothly into each other (built on first run and kept in `user://gait_blend.res`) |
 | `scripts/world.gd` | Terrain, arena, trail, lake shape, where trees and bushes grow, rocks and wildflowers |
 | `scripts/trees.gd`, `shaders/foliage.gdshader`, `shaders/bark.gdshader` | Trees and bushes made in code: oak, birch, pine, poplar, willow, blossom and autumn trees, plain and flowering bushes, with leaves that sway |
 | `scripts/sky_cycle.gd`, `shaders/sky.gdshader` | Day and night (a day lasts 12 minutes), sunrise and sunset, moon, stars and fireflies, clouds, rain and rainbows |

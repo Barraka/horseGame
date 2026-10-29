@@ -45,23 +45,29 @@ const JUMP_CLIPS := ["jump"]
 
 ## The gait set: one file per gait, all the same horse, animated with blend
 ## shapes rather than a skeleton. The files are used exactly as downloaded
-## (their licence forbids edits), so these numbers, measured from them in the
-## model's own units, line each one up:
+## (their licence forbids edits); gait_blend.gd poses one mesh in the frames
+## of all three so the gaits blend into each other. These numbers, measured
+## from the files in the model's own units, line each one up:
 ## - yaw turns its head to face forward (-Z);
 ## - offset puts its saddle spot (see tools/saddle_track.py) on the horse's middle;
 ## - speed is how fast the hooves move the horse when played at normal speed;
 ## - root_motion marks a clip that travels forward through space (along its
 ##   X axis); it is cancelled out by pinning the saddle spot in place, so the
-##   horse runs on the spot.
+##   horse runs on the spot;
+## - phase is where in its clip each gait is at the same point of the stride
+##   (so blending one into another doesn't tangle the legs).
 const GAIT_SET := [
-	{"file": "horse_walk.glb", "yaw": 180.0, "offset": Vector3(0.09, 0.03, -0.76), "speed": 12.1, "root_motion": false},
-	{"file": "horse_trot.glb", "yaw": 180.0, "offset": Vector3(0.01, 0.03, -0.82), "speed": 22.5, "root_motion": false},
-	{"file": "horse_run.glb", "yaw": 90.0, "offset": Vector3(-1.24, -0.66, 0.0), "speed": 77.1, "root_motion": true},
+	{"file": "horse_walk.glb", "yaw": 180.0, "offset": Vector3(0.09, 0.03, -0.76), "speed": 12.1, "root_motion": false, "phase": 0.0},
+	{"file": "horse_trot.glb", "yaw": 180.0, "offset": Vector3(0.01, 0.03, -0.82), "speed": 22.5, "root_motion": false, "phase": 0.02},
+	{"file": "horse_run.glb", "yaw": 90.0, "offset": Vector3(-1.24, -0.66, 0.0), "speed": 77.1, "root_motion": true, "phase": 0.42},
 ]
 const GAIT_SET_FOR_GAIT := [0, 0, 1, 2, 2]   ## Halt pauses the walk; canter is a slower gallop
 const GAIT_SET_JUMP := 2                      ## Jumps hold the gallop's moment of flight...
 const GAIT_SET_JUMP_TIME := 0.167             ## ...which is this far into the clip
 const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, in model units
+const BLEND_SECONDS := 0.4                    ## How long one gait takes to blend into the next
+const JUMP_BLEND_SECONDS := 0.15              ## Into and out of a jump, quicker
+const GaitBlend := preload("res://scripts/gait_blend.gd")
 const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's back, in metres
 const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "fr_low", "fr_high", "hl_low", "hl_high", "hr_low", "hr_high"]
 ## The grooming salon's braids and tail bow follow these (tools/groom_track.py).
@@ -107,10 +113,17 @@ var _gait_anims: Array = []
 var _clip_gait: Array = []   # Which gait each clip was animated for (sets its playback speed)
 var _jump_anim := ""
 var _placeholder: Dictionary = {}
-var _set_models: Array[Node3D] = []
-var _set_players: Array[AnimationPlayer] = []
+var _set_model: MeshInstance3D   # The horse, posed by blending frames of the gait files (gait_blend.gd)
+var _set_lengths: Array[float] = []   # How long each gait file's clip is
 var _set_scale := 1.0
-var _set_active := -1
+# The two poses being blended, as (gait file, time in its clip, or -1 to
+# follow the stride), and how far from the first to the second.
+var _pose_from := Vector2.ZERO
+var _pose_to := Vector2.ZERO
+var _mix := 1.0
+var _mix_rate := 0.0
+var _stride := 0.0   # How far through its stride the horse is, 0 to 1, whatever the gait
+var _weights := {}   # The blend shapes given a weight
 var _coat_material: ShaderMaterial
 var _saddle_track: Dictionary = {}   # Where the back moves in each gait clip (tools/saddle_track.py)
 var _saddle: Node3D                  # Saddle and rider, moved with the horse's back
@@ -226,7 +239,7 @@ func set_body_shape(shape: Vector3) -> void:
 	if _tack:
 		_tack.set_body_scale(shape)
 	if _saddle:
-		_rest_pitch = _back_pitch(_back_points(0, 0.0))
+		_rest_pitch = _back_pitch(_back_points([[0, 0.0, 1.0, _place(0, 0.0)]]))
 		_follow_back()
 
 
@@ -295,10 +308,10 @@ func set_dirt(amount: float) -> void:
 
 ## Stand still in the halt pose, for when the horse isn't being ridden.
 func stand() -> void:
-	if not _set_models.is_empty():
-		_show_gait_model(GAIT_SET_FOR_GAIT[0])
-		_set_players[_set_active].seek(0.0, true)
-		_set_players[_set_active].pause()
+	if _set_model:
+		_aim(GAIT_SET_FOR_GAIT[0], -1.0, 0.0)
+		_stride = 0.0
+		_show_pose()
 		_follow_back()
 
 
@@ -526,17 +539,14 @@ func _animate_trick(delta: float) -> void:
 			gait_model = 0
 	_visual.transform = Transform3D(Basis(Vector3.RIGHT, tilt), Vector3.ZERO)
 	_visual.position = pivot - _visual.basis * pivot
-	if not _set_models.is_empty():
-		_show_gait_model(gait_model)
-		var player := _set_players[gait_model]
+	if _set_model:
 		if trick == "spin":
-			if not player.is_playing():
-				player.play()
-			player.speed_scale = 1.0
-			player.advance(delta)
+			_aim(gait_model, -1.0)
+			_stride = fposmod(_stride + delta / _set_lengths[gait_model], 1.0)
 		else:
-			player.seek(0.0, true)
-			player.pause()
+			_aim(gait_model, 0.0)
+		_mix = minf(_mix + delta * _mix_rate, 1.0)
+		_show_pose()
 		_follow_back()
 	if t >= 1.0:
 		var done := trick
@@ -593,7 +603,7 @@ func _animate(delta: float) -> void:
 	# Pitch the horse nose-up on take-off and nose-down on landing.
 	var pitch := clampf(velocity.y * 0.05, -0.25, 0.25) if jumping else 0.0
 	_visual.rotation.x = lerpf(_visual.rotation.x, pitch, 1.0 - exp(-8.0 * delta))
-	if not _set_models.is_empty():
+	if _set_model:
 		_animate_gait_set(delta)
 	elif _anim:
 		if jumping and _jump_anim:
@@ -625,34 +635,21 @@ func _build_gait_set() -> void:
 		for clip in extra:
 			_saddle_track[clip].merge(extra[clip])
 	for entry in GAIT_SET:
-		var pivot := Node3D.new()
-		pivot.scale = Vector3.ONE * _set_scale
-		pivot.rotation.y = deg_to_rad(entry.yaw)
-		_body.add_child(pivot)
-		var model := (load(gait_set_dir.path_join(entry.file)) as PackedScene).instantiate() as Node3D
-		model.position = entry.offset
-		pivot.add_child(model)
-		# Each file comes with a ground disc or plane under the horse.
-		for node in model.find_children("*", "MeshInstance3D", true, false):
-			var mi := node as MeshInstance3D
-			if mi.mesh and mi.mesh.get_blend_shape_count() == 0:
-				mi.visible = false
-			elif mi.mesh:
-				mi.material_override = _coat(mi.mesh.surface_get_material(0))
-				# A clip that travels moves its vertices far from the mesh's
-				# bounds, which would get the horse culled as off screen.
-				if entry.root_motion:
-					mi.extra_cull_margin = 1000.0
-		var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-		var clip := player.get_animation_list()[0]
-		player.get_animation(clip).loop_mode = Animation.LOOP_LINEAR
-		player.assigned_animation = clip
-		pivot.visible = false
-		_set_models.append(model)
-		player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
-		_set_players.append(player)
+		var times: Array = _saddle_track[entry.file].times
+		_set_lengths.append(times[-1])
+	var mesh := GaitBlend.mesh(GAIT_SET, _saddle_track)
+	var pivot := Node3D.new()
+	pivot.scale = Vector3.ONE * _set_scale
+	pivot.rotation.y = deg_to_rad(GAIT_SET[0].yaw)
+	_body.add_child(pivot)
+	_set_model = MeshInstance3D.new()
+	_set_model.name = "Horse"
+	_set_model.mesh = mesh
+	_set_model.position = GAIT_SET[0].offset
+	_set_model.material_override = _coat(mesh.surface_get_material(0))
+	pivot.add_child(_set_model)
 	_body.scale = body_shape
-	_show_gait_model(0)
+	_show_pose()
 	_build_saddle()
 	if _saddle_track[GAIT_SET[0].file].has("dock"):
 		_hair = preload("res://scripts/hair.gd").new()
@@ -678,49 +675,105 @@ func _coat(original: Material) -> ShaderMaterial:
 	return _coat_material
 
 
-func _show_gait_model(index: int) -> void:
-	if index == _set_active:
+## Start blending towards a pose: gait file `index`, held at `hold` seconds
+## into its clip, or following the stride when `hold` is negative.
+func _aim(index: int, hold := -1.0, seconds := BLEND_SECONDS) -> void:
+	var want := Vector2(index, hold)
+	if seconds <= 0.0:
+		_pose_from = want
+		_pose_to = want
+		_mix = 1.0
 		return
-	# Carry the stride phase across so the switch is less of a jump.
-	var phase := 0.0
-	if _set_active >= 0:
-		var old := _set_players[_set_active]
-		phase = old.current_animation_position / old.current_animation_length
-		old.stop()
-		_set_models[_set_active].get_parent().visible = false
-	_set_active = index
-	var player := _set_players[index]
-	_set_models[index].get_parent().visible = true
-	player.play(player.assigned_animation)
-	player.seek(phase * player.current_animation_length, true)
+	if want == _pose_to:
+		return
+	if want == _pose_from:
+		# Turning back part way: blend back from where it got to.
+		_pose_from = _pose_to
+		_mix = 1.0 - _mix
+	else:
+		if _mix >= 0.5:
+			_pose_from = _pose_to
+		_mix = 0.0
+	_pose_to = want
+	_mix_rate = 1.0 / seconds
+
+
+## Where in gait file `index`'s clip the stride is.
+func _stride_time(index: int) -> float:
+	return fposmod(_stride + GAIT_SET[index].phase, 1.0) * _set_lengths[index]
+
+
+## The poses being blended right now: [gait file, time in its clip, weight,
+## the file's place in _visual's space].
+func _poses() -> Array:
+	var out := []
+	for pair in [[_pose_from, 1.0 - _mix], [_pose_to, _mix]]:
+		var pose: Vector2 = pair[0]
+		var weight: float = pair[1]
+		if weight <= 0.0:
+			continue
+		var index := int(pose.x)
+		var time := pose.y if pose.y >= 0.0 else _stride_time(index)
+		out.append([index, time, weight, _place(index, time)])
+	return out
+
+
+## Where gait file `index` sits in _visual's space at `time` into its clip.
+func _place(index: int, time: float) -> Transform3D:
+	var entry: Dictionary = GAIT_SET[index]
+	var offset: Vector3 = entry.offset
+	if entry.root_motion:
+		# Pinned on the spot: the clip's travel taken back off.
+		offset.x -= _track_point(index, "seat", time).x - _track_point(index, "seat", 0.0).x
+	var turn := Basis(Vector3.UP, deg_to_rad(entry.yaw)) * Basis.from_scale(Vector3.ONE * _set_scale)
+	return _body.transform * Transform3D(turn, turn * offset)
+
+
+## A measured point on the horse (see tools/saddle_track.py), in _visual's
+## space, blended between the poses.
+func _blend_point(poses: Array, mark: String) -> Vector3:
+	var point := Vector3.ZERO
+	for pose in poses:
+		point += (pose[3] as Transform3D) * _track_point(pose[0], mark, pose[1]) * float(pose[2])
+	return point
+
+
+func _show_pose() -> void:
+	var weights := GaitBlend.weights(_poses())
+	for shape in _weights:
+		if not weights.has(shape):
+			_set_model.set_blend_shape_value(shape, 0.0)
+	for shape in weights:
+		_set_model.set_blend_shape_value(shape, weights[shape])
+	_weights = weights
+
+
+## How far through its clip the gait being shown is, from 0 to 1 (for the
+## sound of the hooves), or -1 for a horse without the gait set.
+func clip_position() -> float:
+	if not _set_model:
+		return -1.0
+	var index := int(_pose_to.x)
+	var time := _pose_to.y if _pose_to.y >= 0.0 else _stride_time(index)
+	return time / _set_lengths[index]
 
 
 func _animate_gait_set(delta: float) -> void:
 	var index: int = GAIT_SET_JUMP if jumping else GAIT_SET_FOR_GAIT[current_gait]
-	_show_gait_model(index)
-	var player := _set_players[index]
-	var entry: Dictionary = GAIT_SET[index]
-	if jumping:
-		player.seek(GAIT_SET_JUMP_TIME, true)
-		player.pause()
-	elif current_gait == 0:
-		player.pause()
-	else:
-		if not player.is_playing():
-			player.play()
-		var native: float = entry.speed * _set_scale
-		player.speed_scale = clampf(absf(speed) / native, 0.5, 2.2)
-		# Stepped here rather than on its own, so the saddle and the root
-		# motion below follow the exact frame that gets drawn.
-		player.advance(delta)
-	var model := _set_models[index]
-	if entry.root_motion:
-		var travel := _track_point(index, "seat", player.current_animation_position).x - _track_point(index, "seat", 0.0).x
-		model.position.x = entry.offset.x - travel
+	var landing := not jumping and _pose_to.y >= 0.0
+	_aim(index, GAIT_SET_JUMP_TIME if jumping else -1.0, JUMP_BLEND_SECONDS if jumping or landing else BLEND_SECONDS)
+	if current_gait != 0 and not jumping:
+		var native: float = GAIT_SET[index].speed * _set_scale
+		var rate := clampf(absf(speed) / native, 0.5, 2.2)
+		# Both poses keep step: the stride moves at the pace of the gait
+		# being blended into.
+		_stride = fposmod(_stride + delta * rate / _set_lengths[index], 1.0)
+	_mix = minf(_mix + delta * _mix_rate, 1.0)
+	_show_pose()
 	_follow_back()
 	if _hair:
 		var marks := _tack_marks()
-		marks.withers = _back_points(_set_active, player.current_animation_position)[2]
+		marks.withers = _back_points(_poses())[2]
 		_hair.follow(marks, speed, delta)
 
 
@@ -753,7 +806,7 @@ func _build_saddle() -> void:
 	_tack.body_scale = body_shape
 	_tack.build(tack, _saddle)
 	_set_tuck()
-	_rest_pitch = _back_pitch(_back_points(0, 0.0))
+	_rest_pitch = _back_pitch(_back_points([[0, 0.0, 1.0, _place(0, 0.0)]]))
 	_follow_back()
 
 
@@ -775,13 +828,11 @@ func _track_point(index: int, mark: String, time: float) -> Vector3:
 	return Vector3(a[0], a[1], a[2]).lerp(Vector3(b[0], b[1], b[2]), t)
 
 
-## The croup, seat and withers of gait clip `index` at `time`, in _visual's space.
-func _back_points(index: int, time: float) -> Array[Vector3]:
-	var model := _set_models[index]
-	var to_visual: Transform3D = _body.transform * (model.get_parent() as Node3D).transform * model.transform
+## The croup, seat and withers, in _visual's space, for a blend of poses (_poses()).
+func _back_points(poses: Array) -> Array[Vector3]:
 	var points: Array[Vector3] = []
 	for mark in ["croup", "seat", "withers"]:
-		points.append(to_visual * _track_point(index, mark, time))
+		points.append(_blend_point(poses, mark))
 	return points
 
 
@@ -793,30 +844,32 @@ func _back_pitch(points: Array[Vector3]) -> float:
 func _follow_back() -> void:
 	if not _saddle or _saddle_track.is_empty():
 		return
-	var player := _set_players[_set_active]
-	var points := _back_points(_set_active, player.current_animation_position)
+	var poses := _poses()
+	var points := _back_points(poses)
 	_saddle.position = points[1]
 	_saddle.rotation.x = _back_pitch(points) - _rest_pitch
-	var track: Dictionary = _saddle_track[GAIT_SET[_set_active].file]
 	var radii := {}
 	for mark in TACK_MARKS:
-		if track.has(mark + "_radius"):
-			radii[mark] = track[mark + "_radius"] * _set_scale * (body_shape.x + body_shape.y) * 0.5
-	_tack.follow(_tack_marks(), radii, _saddle.transform)
+		var radius := 0.0
+		for pose in poses:
+			var track: Dictionary = _saddle_track[GAIT_SET[pose[0]].file]
+			radius += track.get(mark + "_radius", 0.0) * float(pose[2])
+		if radius > 0.0:
+			radii[mark] = radius * _set_scale * (body_shape.x + body_shape.y) * 0.5
+	_tack.follow(_tack_marks(poses), radii, _saddle.transform)
 
 
 ## Everything else the tack hangs on, in _visual's space, right now.
-func _tack_marks() -> Dictionary:
-	var model := _set_models[_set_active]
-	var to_visual: Transform3D = _body.transform * (model.get_parent() as Node3D).transform * model.transform
-	var time := _set_players[_set_active].current_animation_position
+func _tack_marks(poses := []) -> Dictionary:
+	if poses.is_empty():
+		poses = _poses()
 	var marks := {}
 	for mark in TACK_MARKS:
-		marks[mark] = to_visual * _track_point(_set_active, mark, time)
-	var track: Dictionary = _saddle_track[GAIT_SET[_set_active].file]
+		marks[mark] = _blend_point(poses, mark)
+	var track: Dictionary = _saddle_track[GAIT_SET[0].file]
 	if track.has("dock"):
 		for mark in GROOM_MARKS:
-			marks[mark] = to_visual * _track_point(_set_active, mark, time)
+			marks[mark] = _blend_point(poses, mark)
 	# Where the bridle lies round the head (groom_track.py).
 	if _bridle_marks.is_empty():
 		for mark in track:
@@ -825,7 +878,7 @@ func _tack_marks() -> Dictionary:
 					or (mark.begins_with("cheek_") and mark.substr(6, 1).is_valid_int()):
 				_bridle_marks.append(mark)
 	for mark in _bridle_marks:
-		marks[mark] = to_visual * _track_point(_set_active, mark, time)
+		marks[mark] = _blend_point(poses, mark)
 	return marks
 
 

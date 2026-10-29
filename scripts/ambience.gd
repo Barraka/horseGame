@@ -73,14 +73,12 @@ func _hooves() -> void:
 	if _was_jumping and _horse.is_on_floor():
 		_was_jumping = false
 		Sound.play("land", -2.0, randf_range(0.9, 1.1))
-	if _horse._set_players.is_empty() or _horse._set_active < 0:
+	var now: float = _horse.clip_position()
+	if now < 0.0:
 		return
-	var player: AnimationPlayer = _horse._set_players[_horse._set_active]
-	var length := player.current_animation_length
-	if length <= 0.0 or gait == 0 or absf(_horse.speed) < 0.3:
+	if gait == 0 or absf(_horse.speed) < 0.3:
 		_last_clip_pos = -1.0
 		return
-	var now := player.current_animation_position / length
 	if _last_clip_pos >= 0.0:
 		for fall in FOOTFALLS[gait]:
 			var crossed: bool = (_last_clip_pos < fall and now >= fall) or (now < _last_clip_pos and (fall > _last_clip_pos or fall <= now))

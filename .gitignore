@@ -9,3 +9,6 @@ export_credentials.cfg
 node_modules/
 .env
 __pycache__/
+
+# Godot-order dump of the horse model, for tools/gait_blend.py (holds the model, not kept)
+tools/mesh_order.json
