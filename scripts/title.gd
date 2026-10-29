@@ -123,6 +123,7 @@ func _build_scene() -> void:
 
 	# Your horse, with you riding it.
 	_horse = Horse.new()
+	_horse.idle_hair = true
 	add_child(_horse)
 	_horse.set_physics_process(false)
 	_horse.stand()

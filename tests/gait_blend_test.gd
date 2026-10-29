@@ -5,6 +5,8 @@ extends SceneTree
 ## while blending than it does in a gait's own stride. Run with:
 ## godot --headless --path . -s tests/gait_blend_test.gd
 
+const STEP := 1.0 / 60.0
+
 var main: Node
 var frames := 0
 var ok := true
@@ -20,7 +22,7 @@ func _initialize() -> void:
 	root.add_child(main)
 
 
-func _process(delta: float) -> bool:
+func _process(_delta: float) -> bool:
 	frames += 1
 	var stable := root.get_node("Stable")
 	var horse: Node3D = main.get_node("Horse")
@@ -33,9 +35,12 @@ func _process(delta: float) -> bool:
 	if frames < 3:
 		return false
 	horse.energy = 1.0
-	# Up through the gaits and back down, a couple of seconds each.
+	# Up through the gaits and back down, two seconds each, stepped by hand
+	# at 60 steps a second so every run is the same.
 	var plan := [1, 2, 3, 4, 3, 2, 1, 0]
 	horse.set_gait(plan[mini(frames / 120, plan.size() - 1)])
+	horse.set_physics_process(false)
+	horse._physics_process(STEP)
 	var total := 0.0
 	var gaits := {}
 	for shape in horse._weights:
@@ -49,7 +54,7 @@ func _process(delta: float) -> bool:
 	# The saddle follows the horse's back, which must never jump.
 	var seat: Vector3 = horse.get_node("Visual/Saddle").position
 	if last_seat != Vector3.INF:
-		var moved := seat.distance_to(last_seat) / maxf(delta, 1.0 / 60.0)
+		var moved := seat.distance_to(last_seat) / STEP
 		if gaits.size() > 1:
 			fastest_blend = maxf(fastest_blend, moved)
 		else:
