@@ -242,7 +242,7 @@ func _bar(root: Control) -> HBoxContainer:
 	bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	bar.position.y -= 112
+	bar.position.y -= 52
 	return bar
 
 
