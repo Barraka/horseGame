@@ -264,6 +264,7 @@ func _build_scene() -> void:
 	_turntable = Node3D.new()
 	add_child(_turntable)
 	_horse = Horse.new()
+	_horse.idle_hair = true
 	_horse.with_rider = false   # Just the horse to admire here
 	_turntable.add_child(_horse)
 	_horse.set_physics_process(false)   # Only a model to look at here, not ridden
