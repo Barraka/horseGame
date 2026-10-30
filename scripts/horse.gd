@@ -71,6 +71,7 @@ const GAIT_SET_JUMP_TIME := 0.167             ## ...which is this far into the c
 const GAIT_SET_LENGTH := 24.6                 ## Nose to tail of the walk file, in model units
 const BLEND_SECONDS := 0.4                    ## How long one gait takes to blend into the next
 const JUMP_BLEND_SECONDS := 0.15              ## Into and out of a jump, quicker
+const HAIR_SETTLE_SECONDS := 1.5              ## A horse standing still lets its hair settle this long, then stops working it out
 const GaitBlend := preload("res://scripts/gait_blend.gd")
 const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's back, in metres
 ## How the rider moves with each gait (halt, walk, trot, canter, gallop):
@@ -92,6 +93,7 @@ const GROOM_MARKS := ["croup", "dock", "crest_0", "crest_1", "crest_2", "crest_3
 @export_file("*.glb", "*.gltf") var model_path := "res://assets/horse/horse.glb"
 @export var model_length := 2.6        ## Nose-to-tail length in metres
 @export var simple_hair := false   ## Fewer hair strands (horses standing in the stalls)
+@export var idle_hair := false     ## Keep the hair blowing while the horse stands (the one horse on show)
 @export var model_yaw_offset := 0.0    ## Degrees; try 180 if the model rides backwards
 @export var coat_color := Color(0.5, 0.26, 0.12)   ## Bay
 @export var points_color := Color(0.08, 0.06, 0.05) ## Mane, tail and lower legs
@@ -142,6 +144,9 @@ var _saddle: Node3D                  # Saddle and rider, moved with the horse's 
 var _rider: Node3D
 var _tack: Node3D
 var _hair: Node3D   ## Mane, forelock and tail (hair.gd)
+var _hair_frame := -1
+var _hair_at := Transform3D()   # Where a horse without physics was when it last moved
+var _hair_still := 0.0          # ...and how long it has stood still since
 var _bridle_marks: Array[String] = []   ## The measured points the bridle lies along
 var _rest_pitch := 0.0
 var _steer := 0.0   # Steering this frame, -1 (left) to 1 (right)
@@ -328,6 +333,7 @@ func stand() -> void:
 		_stride = 0.0
 		_show_pose()
 		_follow_back()
+		_hair_at = Transform3D()   # Let the hair settle into the new pose
 
 
 func jump() -> bool:
@@ -589,8 +595,24 @@ func perform(which: String) -> bool:
 
 
 func _process(delta: float) -> void:
-	if trick != "" and not Engine.is_editor_hint():
+	if Engine.is_editor_hint():
+		return
+	var tricking := trick != ""
+	if tricking:
 		_animate_trick(delta)
+	# Physics moves the hair along with the gait; nothing else does during a
+	# trick, or for a horse that only stands (the title screen, the stalls).
+	# Hair takes a lot of working out, so a horse standing still lets its
+	# hair hang still once it has fallen into place, unless it is the one
+	# horse on show (idle_hair).
+	if tricking or not is_physics_processing():
+		if tricking or global_transform != _hair_at or _mix < 1.0:
+			_hair_at = global_transform
+			_hair_still = 0.0
+		else:
+			_hair_still += delta
+		if idle_hair or _hair_still < HAIR_SETTLE_SECONDS:
+			_follow_hair(delta)
 
 
 func _animate_trick(delta: float) -> void:
@@ -840,20 +862,31 @@ func _animate_gait_set(delta: float) -> void:
 	var index: int = GAIT_SET_JUMP if jumping else GAIT_SET_FOR_GAIT[current_gait]
 	var landing := not jumping and _pose_to.y >= 0.0
 	_aim(index, GAIT_SET_JUMP_TIME if jumping else -1.0, JUMP_BLEND_SECONDS if jumping or landing else BLEND_SECONDS)
-	if current_gait != 0 and not jumping:
-		var native: float = GAIT_SET[index].speed * _set_scale
-		var rate := clampf(absf(speed) / native, 0.5, 2.2)
-		# Both poses keep step: the stride moves at the pace of the gait
-		# being blended into.
-		_stride = fposmod(_stride + delta * rate / _set_lengths[index], 1.0)
 	_mix = minf(_mix + delta * _mix_rate, 1.0)
+	if current_gait != 0 and not jumping:
+		# Both poses keep step: the stride moves at a blend of the two
+		# gaits' paces, so neither suddenly hurries.
+		var pace := 0.0
+		for pair in [[_pose_from, 1.0 - _mix], [_pose_to, _mix]]:
+			var gait := int((pair[0] as Vector2).x)
+			var native: float = GAIT_SET[gait].speed * _set_scale
+			pace += clampf(absf(speed) / native, 0.5, 2.2) / _set_lengths[gait] * float(pair[1])
+		_stride = fposmod(_stride + delta * pace, 1.0)
 	_show_pose()
 	_animate_rider(delta)
 	_follow_back()
-	if _hair:
-		var marks := _tack_marks()
-		marks.withers = _back_points(_poses())[2]
-		_hair.follow(marks, speed, delta)
+	_follow_hair(delta)
+
+
+## The mane, forelock and tail follow the horse's pose (hair.gd).
+func _follow_hair(delta: float) -> void:
+	var frame := Engine.get_process_frames()
+	if not _hair or frame == _hair_frame:
+		return
+	_hair_frame = frame   # Once a frame, however the horse is moved
+	var marks := _tack_marks()
+	marks.withers = _back_points(_poses())[2]
+	_hair.follow(marks, speed, delta)
 
 
 ## The rider moves with the horse: rising at the trot, leaning forward as
