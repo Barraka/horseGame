@@ -32,6 +32,10 @@ const BRAKE := 4.0
 const TRICK_SECONDS := {"bow": 2.8, "spin": 2.6, "rear": 2.4}
 const WANDER := 9.0           ## How far a horse left on its own strolls from where it was left
 const CALL_STOP := 2.4        ## A called horse stops this close to you
+## Led on foot by the head collar, the horse walks on your right, its head
+## beside your shoulder: its middle is this far to your right and behind you.
+const LEAD_SIDE := 0.85
+const LEAD_BACK := 0.95
 
 ## Animation clips are matched by keyword, so most horse packs work as-is.
 const GAIT_CLIPS := [
@@ -70,6 +74,12 @@ const JUMP_BLEND_SECONDS := 0.15              ## Into and out of a jump, quicker
 const HAIR_SETTLE_SECONDS := 1.5              ## A horse standing still lets its hair settle this long, then stops working it out
 const GaitBlend := preload("res://scripts/gait_blend.gd")
 const SADDLE_HEIGHT := 0.07                   ## Rider's seat above the horse's back, in metres
+## How the rider moves with each gait (halt, walk, trot, canter, gallop):
+const RIDER_LEAN := [0.0, 2.0, 6.0, 12.0, 36.0]   ## Leaning forward, degrees
+const RIDER_RISE := [0.0, 0.0, 0.07, 0.0, 0.05]   ## Out of the saddle: rising at the trot, a light seat at the gallop (m)
+const RIDER_REACH := [0.0, 6.0, 0.0, 9.0, 6.0]    ## Hands following the head's nod, degrees
+const RIDER_POST_PHASE := 0.0                     ## When in the trot's stride the rider rises
+const RIDER_ROLL := 9.0                           ## Leaning into a turn at full speed, degrees
 const TACK_MARKS := ["nose", "muzzle", "cheek", "crown", "fl_low", "fl_high", "fr_low", "fr_high", "hl_low", "hl_high", "hr_low", "hr_high"]
 ## The grooming salon's braids and tail bow follow these (tools/groom_track.py).
 const GROOM_MARKS := ["croup", "dock", "crest_0", "crest_1", "crest_2", "crest_3", "crest_4", "crest_5", "crest_6",
@@ -102,6 +112,8 @@ var energy := 1.0   ## Breath for galloping, from 0 to 1
 var ridden := true  ## False while you're on foot: the horse grazes and strolls about
 var trick := ""     ## The trick being done, if any
 var _caller: Node3D        # Who whistled, while the horse comes over
+var _leader: Node3D        # Who leads the horse by its head collar
+var _lead_speed := 0.0     # How fast to walk to keep up with them
 var _home := Vector3.ZERO  # Where it was left
 var _stroll_to := Vector3.INF
 var _graze_left := 0.0
@@ -137,6 +149,9 @@ var _hair_at := Transform3D()   # Where a horse without physics was when it last
 var _hair_still := 0.0          # ...and how long it has stood still since
 var _bridle_marks: Array[String] = []   ## The measured points the bridle lies along
 var _rest_pitch := 0.0
+var _steer := 0.0   # Steering this frame, -1 (left) to 1 (right)
+# How the rider moves right now, eased from gait to gait (see RIDER_LEAN).
+var _ride := {"lean": 0.0, "post": 0.0, "seat": 0.0, "nod_walk": 0.0, "nod_run": 0.0, "fold": 0.0, "roll": 0.0}
 var _phase := 0.0
 var _ridden := 0.0   # Metres ridden since the stable was last told
 var _click_from := Vector2.INF   # Where the mouse button went down
@@ -388,6 +403,7 @@ func _physics_process(delta: float) -> void:
 		steer = Input.get_axis("steer_left", "steer_right")
 	else:
 		steer = _free_steer(delta)
+	_steer = steer
 
 	# Pressing forward at a halt starts a walk.
 	if forward and target_gait == 0:
@@ -397,6 +413,8 @@ func _physics_process(delta: float) -> void:
 	var top := top_speed(target_gait)
 	if not is_on_floor():
 		pass  # keep momentum in the air
+	elif _leader:
+		speed = move_toward(speed, _lead_speed, 5.0 * delta)
 	elif back:
 		speed = move_toward(speed, -1.0, BRAKE * 2.0 * delta)
 	elif speed < top:
@@ -440,6 +458,7 @@ func _physics_process(delta: float) -> void:
 func let_go() -> void:
 	ridden = false
 	_caller = null
+	_leader = null
 	_home = global_position
 	_stroll_to = Vector3.INF
 	_graze_left = _rng.randf_range(2.0, 4.0)
@@ -449,6 +468,36 @@ func let_go() -> void:
 ## Someone whistled: trot over to them and stop alongside.
 func call_over(caller: Node3D) -> void:
 	_caller = caller
+	_leader = null
+
+
+## Walk alongside someone on foot, led by the head collar (null lets go:
+## the horse stays about there, grazing).
+func lead(leader: Node3D) -> void:
+	if leader:
+		_caller = null
+		_leader = leader
+	else:
+		let_go()
+
+
+## Whether someone is leading the horse.
+func is_led() -> bool:
+	return _leader != null
+
+
+## Where the lead rope clips on, under the horse's chin, in world space.
+func lead_ring() -> Vector3:
+	var poses := _poses() if _set_model else []
+	if poses.is_empty():
+		return global_transform * Vector3(0, 1.3, -1.3)
+	var track: Dictionary = _saddle_track[GAIT_SET[0].file]
+	var ring := Vector3.ZERO
+	if track.has("bit_l") and track.has("bit_r"):
+		ring = (_blend_point(poses, "bit_l") + _blend_point(poses, "bit_r")) * 0.5
+	else:
+		ring = _blend_point(poses, "muzzle")
+	return _visual.global_transform * (ring + Vector3(0, -0.04, 0))
 
 
 ## Whether the horse is on its way over after a whistle.
@@ -460,6 +509,7 @@ func is_coming() -> bool:
 func take_back() -> void:
 	ridden = true
 	_caller = null
+	_leader = null
 	set_gait(0)
 
 
@@ -467,6 +517,8 @@ func take_back() -> void:
 func _free_steer(delta: float) -> float:
 	var goal: Vector3
 	var gait := 1
+	if _leader:
+		return _follow_leader()
 	if _caller:
 		goal = _caller.global_position
 		var away := Vector2(goal.x - global_position.x, goal.z - global_position.z).length()
@@ -496,6 +548,32 @@ func _free_steer(delta: float) -> float:
 	if target_gait != gait:
 		set_gait(gait)
 	var facing := atan2(-(goal.x - global_position.x), -(goal.z - global_position.z))
+	return -clampf(wrapf(facing - rotation.y, -PI, PI) * 2.0, -1.0, 1.0)
+
+
+## Keeping beside whoever leads the horse: sets the pace to walk at and
+## returns the steering.
+func _follow_leader() -> float:
+	var frame := _leader.global_transform.basis
+	var goal := _leader.global_position + frame.x * LEAD_SIDE + frame.z * LEAD_BACK
+	var to_goal := Vector2(goal.x - global_position.x, goal.z - global_position.z)
+	var forward := Vector2(-global_transform.basis.z.x, -global_transform.basis.z.z)
+	var ahead := to_goal.dot(forward)
+	# Keep up: the leader's pace, a little faster while behind, and stop
+	# once alongside.
+	var pace: float = _leader.get("speed") if _leader.get("speed") != null else 0.0
+	_lead_speed = clampf(pace + ahead * 2.5, 0.0, GAITS[2].speed if to_goal.length() > 4.0 else GAITS[1].speed * 1.2)
+	var gait := 0 if _lead_speed < 0.2 else (2 if _lead_speed > GAITS[1].speed * 1.3 else 1)
+	if target_gait != gait:
+		set_gait(gait)
+	# Turn towards the spot while it's off to the side, otherwise face the
+	# way the leader faces.
+	var facing := rotation.y
+	if to_goal.length() > 0.5:
+		facing = atan2(-to_goal.x, -to_goal.y)
+	else:
+		var look := -frame.z
+		facing = atan2(-look.x, -look.z)
 	return -clampf(wrapf(facing - rotation.y, -PI, PI) * 2.0, -1.0, 1.0)
 
 
@@ -795,6 +873,7 @@ func _animate_gait_set(delta: float) -> void:
 			pace += clampf(absf(speed) / native, 0.5, 2.2) / _set_lengths[gait] * float(pair[1])
 		_stride = fposmod(_stride + delta * pace, 1.0)
 	_show_pose()
+	_animate_rider(delta)
 	_follow_back()
 	_follow_hair(delta)
 
@@ -808,6 +887,36 @@ func _follow_hair(delta: float) -> void:
 	var marks := _tack_marks()
 	marks.withers = _back_points(_poses())[2]
 	_hair.follow(marks, speed, delta)
+
+
+## The rider moves with the horse: rising at the trot, leaning forward as
+## it goes faster, folding over jumps, leaning into turns, and hands
+## following the reins as the head nods.
+func _animate_rider(delta: float) -> void:
+	if not _rider or not _rider.visible:
+		return
+	var gait := current_gait if trick == "" else 0
+	var rate := 1.0 - exp(-4.0 * delta)
+	var targets := {
+		"lean": RIDER_LEAN[gait],
+		"post": RIDER_RISE[gait] if gait == 2 else 0.0,
+		"seat": RIDER_RISE[gait] if gait != 2 else 0.0,
+		"nod_walk": RIDER_REACH[gait] if gait == 1 else 0.0,
+		"nod_run": RIDER_REACH[gait] if gait >= 3 else 0.0,
+		"roll": _steer * clampf(absf(speed) / GAITS[3].speed, 0.0, 1.0) * RIDER_ROLL,
+	}
+	for key in targets:
+		_ride[key] = lerpf(_ride[key], targets[key], rate)
+	# Folding into a jump is quick.
+	_ride.fold = lerpf(_ride.fold, 1.0 if jumping else 0.0, 1.0 - exp(-12.0 * delta))
+	var beat := TAU * (_stride + RIDER_POST_PHASE)
+	var rise: float = _ride.post * (0.5 - 0.5 * cos(beat)) + _ride.seat
+	# The head nods twice a stride at the walk, once at the canter and gallop.
+	var reach: float = _ride.nod_walk * sin(beat * 2.0) + _ride.nod_run * sin(beat)
+	# The rider keeps their balance as the back rocks: their body leans
+	# against most of its pitch while their seat goes with it.
+	var balance := rad_to_deg(_saddle.rotation.x) * 0.7
+	_rider.ride_pose(_ride.lean + balance, rise, _ride.fold, _ride.roll, reach)
 
 
 ## The tack (scripts/tack.gd), with the player's rider in the saddle when
@@ -834,7 +943,8 @@ func _build_saddle() -> void:
 			_rider.build(rider_data.config if rider_data and not Engine.is_editor_hint() else {})
 		_rider.set_pose("ride")
 		_rider.rotation.y = PI   # The rider model faces +Z, the horse -Z
-		_rider.position.y = SADDLE_HEIGHT - _rider.HIP_HEIGHT
+		_rider.seat = Vector3(0, SADDLE_HEIGHT - _rider.HIP_HEIGHT, 0)
+		_rider.position = _rider.seat
 		_tack.rider = _rider
 	_tack.body_scale = body_shape
 	_tack.build(tack, _saddle)

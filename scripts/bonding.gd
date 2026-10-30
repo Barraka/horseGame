@@ -2,10 +2,11 @@ extends Node
 ## Your bond with the horse while you ride: its hearts and mood on screen,
 ## tricks it has learnt (bow, spin, rear) at a halt, and getting off to
 ## walk about. Left alone the horse grazes and strolls; whistle and it
-## trots over to you. The hearts grow in stable_data.gd.
+## trots over to you; take its head collar and it walks beside you. The
+## hearts grow in stable_data.gd.
 ##
-## Keys: B bow, N spin, V rear, G get off or on, F whistle. They sit where
-## they are on French keyboards too.
+## Keys: B bow, N spin, V rear, G get off or on, F whistle, C lead or let
+## go. They sit where they are on French keyboards too.
 
 const KEYS := {KEY_B: "bow", KEY_N: "spin", KEY_V: "rear"}
 const MOUNT_REACH := 3.5   ## How close you must be to get back on
@@ -27,6 +28,7 @@ var _trick_bar: HBoxContainer
 var _foot_bar: HBoxContainer
 var _trick_buttons := {}
 var _mount_button: Button
+var _lead_button: Button
 var _whistled := false   # The horse is coming because you whistled
 var _touch := false
 
@@ -58,6 +60,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			get_off()
 	elif key.physical_keycode == KEY_F:
 		whistle()
+	elif key.physical_keycode == KEY_C:
+		toggle_lead()
 
 
 ## Ask the horse for a trick. Returns true if it does it.
@@ -115,9 +119,28 @@ func get_on() -> bool:
 	return true
 
 
+## Take the horse's head collar and lead it, or let go. Returns true if
+## you're now leading it.
+func toggle_lead() -> bool:
+	if not on_foot:
+		return false
+	if on_foot.leading:
+		on_foot.leading = null
+		_horse.lead(null)
+		_refresh()
+		return false
+	if _flat_distance() > MOUNT_REACH:
+		_say("Walk up to %s first, or whistle" % Stable.horse_name(Stable.selected))
+		return false
+	on_foot.leading = _horse
+	_horse.lead(on_foot)
+	_refresh()
+	return true
+
+
 ## Call the horse over.
 func whistle() -> bool:
-	if not on_foot:
+	if not on_foot or on_foot.leading:
 		return false
 	on_foot.waving = 1.2
 	if _flat_distance() <= _horse.CALL_STOP + 0.3:
@@ -166,7 +189,11 @@ func _process(_delta: float) -> void:
 	_trick_bar.visible = not on_foot and halted and _horse.trick == ""
 	_foot_bar.visible = on_foot != null
 	if on_foot:
-		_mount_button.disabled = _flat_distance() > MOUNT_REACH
+		var near := _flat_distance() <= MOUNT_REACH
+		_mount_button.disabled = not near
+		_lead_button.disabled = not near and not on_foot.leading
+		var lead_text := "Let go" if on_foot.leading else "Lead"
+		_lead_button.text = lead_text if _touch else "%s  C" % lead_text
 	if Engine.get_process_frames() % 10 == 0:
 		_refresh()
 
@@ -177,7 +204,10 @@ func _refresh() -> void:
 	_hearts.show_hearts(index)
 	var mood: String = Stable.mood(index)
 	if on_foot:
-		mood = "Coming over" if _horse.is_coming() else ("Grazing" if _horse.target_gait == 0 else "Strolling about")
+		if _horse.is_led():
+			mood = "Walking with you"
+		else:
+			mood = "Coming over" if _horse.is_coming() else ("Grazing" if _horse.target_gait == 0 else "Strolling about")
 	elif _horse.current_gait >= 3 and Stable.happiness(index) > 0.6:
 		mood = "Loving the gallop!" if _horse.current_gait == 4 else "Enjoying the canter"
 	_mood.text = mood
@@ -231,6 +261,7 @@ func _build_ui() -> void:
 	_button(_trick_bar, "Get off", "G", get_off)
 	_foot_bar = _bar(root)
 	_button(_foot_bar, "Whistle", "F", whistle)
+	_lead_button = _button(_foot_bar, "Lead", "C", toggle_lead)
 	_mount_button = _button(_foot_bar, "Get on", "G", get_on)
 	_foot_bar.visible = false
 

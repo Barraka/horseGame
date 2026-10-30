@@ -75,11 +75,17 @@ const POSES := {
 }
 ## Height of the hips above the feet in the model's rest pose.
 const HIP_HEIGHT := 0.93
+## How much the legs open (thigh, calf, in degrees) per metre the rider
+## rises out of the saddle, so the feet stay in the stirrups.
+const RISE_THIGH := 150.0
+const RISE_CALF := -160.0
 
 var config: Dictionary = DEFAULT.duplicate()
 var skeleton: Skeleton3D
 var _model: Node3D
 var _pose := "stand"
+## Where the rider sits in the saddle (horse.gd); ride_pose() rises from here.
+var seat := Vector3.ZERO
 
 
 ## Rebuild the rider from a config (missing keys keep their defaults).
@@ -128,9 +134,40 @@ func set_pose(pose: String) -> void:
 	pose_bones(POSES[pose])
 
 
+## Riding, moving with the horse: `lean` forward (degrees), `rise` out of
+## the saddle (metres; the legs open so the feet stay in the stirrups),
+## `fold` down along the neck over a jump (0 to 1), `roll` into a turn
+## (degrees, + to the rider's right) and `reach` with the hands towards the
+## horse's mouth (degrees, as the head nods).
+func ride_pose(lean: float, rise: float, fold: float, roll: float, reach: float) -> void:
+	var rotations: Dictionary = POSES.ride.duplicate()
+	var bend := lean + fold * 30.0
+	rotations["spine_01"] = Vector3(8.0 + bend * 0.6, 0, roll * 0.6)
+	rotations["spine_03"] = Vector3(bend * 0.5, 0, roll * 0.4)
+	# Eyes up, looking ahead between the ears.
+	rotations["neck_01"] = Vector3(-bend * 0.7, 0, -roll * 0.6)
+	for side in ["l", "r"]:
+		var s := 1.0 if side == "l" else -1.0
+		var thigh: Vector3 = rotations["thigh_" + side]
+		var calf: Vector3 = rotations["calf_" + side]
+		rotations["thigh_" + side] = thigh + Vector3(rise * RISE_THIGH - fold * 12.0, 0, 0)
+		rotations["calf_" + side] = calf + Vector3(rise * RISE_CALF + fold * 10.0, 0, 0)
+		# Hands stay low over the withers as the body leans (the arms turn
+		# back against the lean), slide up the neck over a jump, and follow
+		# the reins as the head nods.
+		var arm: Vector3 = rotations["upperarm_" + side]
+		rotations["upperarm_" + side] = arm + Vector3(lean * 0.9 - reach - fold * 25.0, 0, 0)
+		rotations["lowerarm_" + side] = rotations["lowerarm_" + side] + Vector3(fold * 15.0, 0, 0)
+	_pose = "ride"
+	pose_bones(rotations)
+	# Up and a little forward, over the knees.
+	position = seat + transform.basis * Vector3(0, rise, rise * 0.35 + fold * 0.06)
+
+
 ## A step of walking, `phase` going round 0 to TAU for a stride; `wave`
-## raises the right hand to whistle and wave.
-func walk_pose(phase: float, stride := 1.0, wave := 0.0) -> void:
+## raises the right hand to whistle and wave; `lead` holds the right hand
+## out, leading a horse by its head collar.
+func walk_pose(phase: float, stride := 1.0, wave := 0.0, lead := 0.0) -> void:
 	var swing := sin(phase) * 28.0 * stride
 	var bend := maxf(0.0, -cos(phase)) * 40.0 * stride
 	var bend_r := maxf(0.0, cos(phase)) * 40.0 * stride
@@ -140,6 +177,9 @@ func walk_pose(phase: float, stride := 1.0, wave := 0.0) -> void:
 		"upperarm_l": Vector3(swing * 0.7, 0, -75), "upperarm_r": Vector3(-swing * 0.7, 0, 75),
 		"lowerarm_l": Vector3(-15, 0, 0), "lowerarm_r": Vector3(-15, 0, 0),
 	}
+	if lead > 0.0:
+		rotations["upperarm_r"] = rotations["upperarm_r"].lerp(Vector3(-25, 0, 62), lead)
+		rotations["lowerarm_r"] = rotations["lowerarm_r"].lerp(Vector3(-55, 0, 0), lead)
 	if wave > 0.0:
 		rotations["upperarm_r"] = Vector3(-swing * 0.7, 0, 75).lerp(Vector3(-20, 0, -40 + sin(Time.get_ticks_msec() * 0.012) * 18.0), wave)
 		rotations["lowerarm_r"] = Vector3(-15, 0, 0).lerp(Vector3(-50, 0, 0), wave)

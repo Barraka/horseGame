@@ -20,6 +20,7 @@ This is the first playable prototype: ride a horse around a meadow, switch gaits
 | T / R | Move the clock on two hours / change the weather |
 | Tab | Open or close the map |
 | P | Photo mode (Escape to leave) |
+| G / F / C | Get off or on / whistle your horse over / lead it by the head collar |
 
 On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons bottom right; drag on the open screen to look around.
 
@@ -47,7 +48,7 @@ On a tablet, a joystick appears bottom left and Faster, Slower and Jump buttons 
 
 **Training:** every horse gets better at what you do with it. Cantering and galloping train **speed** (a faster canter and gallop), jumping trains **jumping** (higher jumps, with extra for clearing a course fence), and riding anywhere trains **stamina** (a longer gallop). Galloping uses up the horse's breath, shown as a blue bar at the bottom of the screen; when it runs out the horse drops to a canter until it has its breath back. Each skill goes from level 1 to 10, shown under **Training** in the stable. The numbers are at the top of `scripts/stable_data.gd` and `scripts/horse.gd`.
 
-**Bonding:** your horse's hearts (up to five) and mood show under the coins while you ride. Hearts grow with carrots, brushing, pats, rides, quests and tricks. With enough hearts your horse learns tricks: **Bow** at one heart, **Spin** at two and **Rear** at three. Stop, then press the trick's button (or B, N, V). A grumpy horse won't do tricks, so look after it first. Press **Get off** (G) at a halt to walk about with the same keys; your horse grazes and strolls nearby. Press **Whistle** (F) and it trots over to you, then **Get on** (G). The stable panel shows the hearts too, with trick buttons. The numbers are at the top of `scripts/stable_data.gd`.
+**Bonding:** your horse's hearts (up to five) and mood show under the coins while you ride. Hearts grow with carrots, brushing, pats, rides, quests and tricks. With enough hearts your horse learns tricks: **Bow** at one heart, **Spin** at two and **Rear** at three. Stop, then press the trick's button (or B, N, V). A grumpy horse won't do tricks, so look after it first. Press **Get off** (G) at a halt to walk about with the same keys; your horse grazes and strolls nearby. Press **Whistle** (F) and it trots over to you. Next to it, press **Lead** (C) to take its head collar and it walks beside you on a lead rope, stopping when you stop; press it again to let go. Then **Get on** (G). The stable panel shows the hearts too, with trick buttons. The numbers are at the top of `scripts/stable_data.gd`.
 
 **Competitions:** Judge Clara stands by the arena with a table of cups. Ride up to her to enter **show jumping** (beat the other riders' rounds on the arena course: fewest faults, then fastest time), the **trail race** (line up with three other riders, then race 700 m along the trail through the numbered sky blue checkpoints), **dressage** or **cross-country**. In dressage the jumps clear out of the arena and you ride a test from letter to letter (A, K, E, H, C, M, B, F round the fence and X in the middle): ride through each pink ring in the gait shown, and halt at X at the end. Each movement scores marks for the right gait, riding right through the letter and going straight there, and a well-bonded horse earns a harmony bonus. Cross-country is a course of nine natural jumps out along the trail east of the arena (logs, a jump into a splash of water, hay bales, a brush hedge, a stone wall and more), each between a red flag on the right and a white one on the left. A jump too low is a refusal (20 penalties, and you try again), riding past beside it is a run-out (20 penalties), and every second over the optimum time adds 0.4. The jumps stay out there, so you can practise them any time. Each has a Bronze, Silver and Gold cup, with better riders in each. Every place wins a rosette and coins, and winning a cup wins its trophy and opens the next cup. Afterwards Judge Clara tells you how you did, with a tip when you didn't win. The **Trophies** button in the stable shows the cups and rosettes you've won. The riders and prizes are at the top of `scripts/competitions.gd`.
 
@@ -102,7 +103,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/shop.gd` | The stable's shop: horses and tack colours to buy with coins |
 | `scripts/coin_badge.gd` | The coin counter on the stable and riding screens |
 | `scenes/rider_creator.tscn`, `scripts/rider_creator.gd` | The screen where you design your rider |
-| `scripts/rider.gd` | The rider: puts the character parts together and poses them; add options to its lists |
+| `scripts/rider.gd` | The rider: puts the character parts together and poses them; add options to its lists. While riding, `horse.gd` moves them with the horse (`RIDER_LEAN` and the numbers next to it): rising at the trot, leaning forward at the canter and gallop, folding over jumps, leaning into turns |
 | `scripts/rider_data.gd` | How your rider looks, saved between games |
 | `assets/rider/` | Character parts (bodies, heads, hair, outfits) from Quaternius |
 | `tools/prepare_rider.py` | Copies the character parts out of the Quaternius downloads into `assets/rider/` |
@@ -118,7 +119,7 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `scripts/sky_cycle.gd`, `shaders/sky.gdshader` | Day and night (a day lasts 12 minutes), sunrise and sunset, moon, stars and fireflies, clouds, rain and rainbows |
 | `scripts/mountains.gd`, `shaders/ice.gdshader` | The snowy mountains: the Frozen Lake's ice, the Mountain Hut and its snowman, the Frozen Falls, the track's poles, the signpost at the pass and falling snow |
 | `scripts/beach.gd`, `shaders/sea.gdshader` | The beach: the sea and its waves, palms, rocks and driftwood, Seashell Cove, the Old Shipwreck, Lighthouse Point and seagulls |
-| `scripts/bonding.gd`, `scripts/on_foot.gd`, `scripts/hearts.gd` | Bonding while you ride: hearts and mood, tricks at a halt, getting off to walk and whistling your horse over |
+| `scripts/bonding.gd`, `scripts/on_foot.gd`, `scripts/hearts.gd` | Bonding while you ride: hearts and mood, tricks at a halt, getting off to walk, whistling your horse over and leading it |
 | `scripts/sound.gd`, `scripts/ambience.gd`, `assets/audio/`, `tools/make_sounds.py` | Music and sounds: the Sound autoload plays them, the Ambience node does hoofbeats and outdoor sounds while riding, and the tool makes the sound files |
 | `scripts/grass.gd`, `shaders/grass.gdshader`, `shaders/wind.gdshaderinc` | Grass that grows around the camera and sways in the wind (fewer, closer blades on tablets) |
 | `shaders/terrain.gdshader`, `shaders/ground.gdshaderinc`, `shaders/flower.gdshader` | The ground's painted patches, grain and bumps; the wildflowers |
@@ -132,7 +133,8 @@ Then, any time: click the **Android** button that appears next to ▶ at the top
 | `tests/mountains_test.gd` | Automatic test: canters through the pass into the valley, checks the track is gentle, snow falls (and rain turns to snow), and hooves crunch in the snow and clop on the ice |
 | `tests/map_photo_test.gd` | Automatic test: opens and closes the map and photo mode, and checks the map's places, the photo camera and the looks |
 | `tests/explore_test.gd` | Automatic test: visits every place and checks it is discovered |
-| `tests/bonding_test.gd` | Automatic test: hearts grow with care, tricks unlock and play, and a whistle brings the horse over |
+| `tests/bonding_test.gd` | Automatic test: hearts grow with care, tricks unlock and play, a whistle brings the horse over, and a led horse walks beside you |
+| `tests/rider_test.gd` | Automatic test: the rider rises at the trot with the feet in the stirrups, leans at the gallop, folds over a jump and leans into turns |
 | `tests/sound_test.gd` | Automatic test: every sound loads, hoofbeats keep time and splash in water, and caring for the horse makes its sounds |
 | `tests/ride_test.gd` | Automatic test: rides the course twice and checks scoring and that riding wears the horse out |
 | `tests/tack_test.gd` | Automatic test: picks tack, rides through every gait, and checks it is saved and stays on the horse |

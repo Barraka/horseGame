@@ -1,7 +1,8 @@
 extends SceneTree
 ## Bonding: care and rides grow hearts, tricks unlock with hearts and are
 ## refused by an unhappy horse, the horse bows, spins and rears at a halt,
-## you can get off and walk, and a whistle brings the horse trotting over.
+## you can get off and walk, a whistle brings the horse trotting over, and
+## it walks beside you when you lead it by the head collar.
 ## Puts the saved stable back afterwards. Run with:
 ## godot --headless --path . -s tests/bonding_test.gd
 
@@ -141,4 +142,21 @@ func _plan() -> void:
 		var away := Vector2(person.global_position.x - horse.global_position.x, person.global_position.z - horse.global_position.z).length()
 		_check("It stopped next to you", away < 3.5 and away > 1.0)
 		_check("Coming over grows the bond", stable.bond[i] > saved.before_call)
+		_check("Taking the head collar", bonding.toggle_lead() and horse.is_led())
+		Input.action_press("ride_forward")
+		wait = 5.0)
+	steps.append(func():
+		var person: Node3D = bonding.on_foot
+		var beside: Vector3 = person.global_transform.affine_inverse() * horse.global_position
+		_check("The led horse walks beside you", beside.x > 0.3 and beside.x < 1.6 and absf(beside.z - horse.LEAD_BACK) < 0.8)
+		_check("It walks at your pace", absf(horse.speed - person.speed) < 0.3)
+		_check("The lead rope is in your hand", person._rope != null and person._rope.visible)
+		Input.action_release("ride_forward")
+		wait = 2.0)
+	steps.append(func():
+		_check("The horse stops when you stop", absf(horse.speed) < 0.2)
+		_check("Letting go", not bonding.toggle_lead() and not horse.is_led())
+		wait = 0.3)
+	steps.append(func():
+		_check("The rope goes with it", not bonding.on_foot._rope.visible)
 		_check("Getting back on", bonding.get_on() and horse.ridden and bonding.on_foot == null))
