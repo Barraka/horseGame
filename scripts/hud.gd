@@ -1,13 +1,12 @@
 extends CanvasLayer
-## On-screen display: gait buttons, course status, messages, and the
-## touch controls (joystick, Faster, Slower, Jump) on touch screens, and a
-## breath bar while the horse is galloping or getting its breath back.
+## On-screen display: course status, messages, the touch controls
+## (joystick, Faster, Slower, Jump) on touch screens, and a breath bar
+## while the horse is galloping or getting its breath back.
 
 @export var horse_path: NodePath
 @export var course_path: NodePath
 
 var _horse: Node
-var _gait_buttons: Array[Button] = []
 var _status: Label
 var _explore: Label
 var _toast: Label
@@ -24,7 +23,7 @@ func _ready() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
-	_build_gait_bar(root)
+	_build_breath_bar(root)
 	_status = _panel_label(root, Control.PRESET_TOP_LEFT, Vector2(20, 20), 20)
 	_explore = _panel_label(root, Control.PRESET_TOP_LEFT, Vector2(20, 112), 18)
 	var coins := preload("res://scripts/coin_badge.gd").new()
@@ -61,13 +60,11 @@ func _ready() -> void:
 	stable.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	stable.position.y += 20
 
-	_horse.gait_changed.connect(_on_gait_changed)
 	_horse.jump_refused.connect(func(): show_message("Trot or faster to jump!"))
 	_horse.out_of_breath.connect(func(): show_message("%s is out of breath!\nCanter or trot for a bit" % Stable.horse_name(Stable.selected)))
 	Stable.level_up.connect(func(_i, skill, level): show_message("%s's %s is now level %d!" % [Stable.horse_name(Stable.selected), Stable.SKILL_NAMES[skill].to_lower(), level]))
 	course.status_changed.connect(func(text): _status.text = text)
 	course.announce.connect(show_message)
-	_on_gait_changed(0)
 
 
 func _process(_delta: float) -> void:
@@ -117,25 +114,8 @@ func _panel_label(root: Control, preset: int, offset: Vector2, font_size: int) -
 	return label
 
 
-func _build_gait_bar(root: Control) -> void:
-	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", 8)
-	root.add_child(bar)
-	bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	bar.position.y -= 24
-	for i in _horse.GAITS.size():
-		var button := Button.new()
-		button.text = ("■ " if i == 0 else "%d " % i) + _horse.GAITS[i].name
-		button.focus_mode = Control.FOCUS_NONE
-		button.custom_minimum_size = Vector2(110, 48)
-		button.add_theme_font_size_override("font_size", 18)
-		button.pressed.connect(_horse.set_gait.bind(i))
-		bar.add_child(button)
-		_gait_buttons.append(button)
-
-	# Breath, just above the gait buttons.
+## How much breath the horse has, at the bottom of the screen.
+func _build_breath_bar(root: Control) -> void:
 	_breath = ProgressBar.new()
 	_breath.show_percentage = false
 	_breath.custom_minimum_size = Vector2(300, 14)
@@ -153,21 +133,8 @@ func _build_gait_bar(root: Control) -> void:
 	_breath.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_breath.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_breath.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_breath.position.y -= 86
+	_breath.position.y -= 24
 	_breath.visible = false
-
-
-func _on_gait_changed(gait: int) -> void:
-	for i in _gait_buttons.size():
-		var selected := i == gait
-		var style := _panel_style(0.92 if selected else 0.45)
-		if selected:
-			style.bg_color = Color(1, 0.97, 0.9, 0.95)
-		for state in ["normal", "hover", "pressed"]:
-			_gait_buttons[i].add_theme_stylebox_override(state, style)
-		var color := Color(0.2, 0.15, 0.25) if selected else Color.WHITE
-		for state in ["font_color", "font_hover_color", "font_pressed_color"]:
-			_gait_buttons[i].add_theme_color_override(state, color)
 
 
 func _build_touch_controls(root: Control) -> void:
